@@ -1,6 +1,7 @@
-class_name StyleKit
-extends RefCounted
+extends Node
 ## Builds reusable stylized materials + inverted-hull outline.
+## Autoload singleton so StyleKit resolves on Godot 4.7
+## even when global class cache fails for RefCounted scripts.
 ## Uses StandardMaterial3D (never pink) instead of a custom light() toon shader.
 ## Godot 4.5–4.7 Forward+ has had regressions where NORMAL/VIEW in light()
 ## fail to compile → magenta/pink materials. Playability first.

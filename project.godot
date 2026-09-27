@@ -17,6 +17,7 @@ config/features=PackedStringArray("4.3", "Forward+")
 [autoload]
 
 GameManager="*res://scripts/GameManager.gd"
+StyleKit="*res://scripts/StyleKit.gd"
 
 [display]
 
