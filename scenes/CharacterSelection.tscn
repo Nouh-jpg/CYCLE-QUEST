@@ -1,12 +1,20 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3 uid="uid://bqcharselect01"]
 
 [ext_resource type="Script" path="res://scripts/CharacterSelection.gd" id="1_script"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_Title"]
+font_size = 64
+font_color = Color(1, 0.8, 0.4, 1)
+outline_size = 8
+outline_color = Color(0, 0, 0, 1)
 
 [node name="CharacterSelection" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 script = ExtResource("1_script")
 
 [node name="Background" type="ColorRect" parent="."]
@@ -14,26 +22,31 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 color = Color(0.15, 0.1, 0.2, 1)
 
 [node name="Title" type="Label" parent="."]
 layout_mode = 1
-anchors_preset = 15
+anchors_preset = 10
 anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 0.0
-offset_top = 100.0
-offset_right = 0.0
-offset_bottom = -500.0
+offset_top = 80.0
+offset_bottom = 180.0
+grow_horizontal = 2
 text = "SELECT YOUR RIDER"
-horizontal_alignment = 1
 label_settings = SubResource("LabelSettings_Title")
+horizontal_alignment = 1
+vertical_alignment = 1
 
-[sub_resource name="LabelSettings_Title" type="LabelSettings"]
-font_size = 64
-font_color = Color(1, 0.8, 0.4, 1)
-outline_size = 8
-outline_color = Color(0, 0, 0, 1)
+[node name="Subtitle" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 170.0
+offset_bottom = 210.0
+grow_horizontal = 2
+text = "Cycle Quest"
+horizontal_alignment = 1
 
 [node name="HBoxContainer" type="HBoxContainer" parent="."]
 layout_mode = 1
@@ -42,16 +55,21 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -200.0
-offset_top = -100.0
-offset_right = 200.0
-offset_bottom = 100.0
-theme_override_constants/separation = 100
+offset_left = -260.0
+offset_top = -60.0
+offset_right = 260.0
+offset_bottom = 60.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 60
+alignment = 1
 
 [node name="MayaButton" type="Button" parent="HBoxContainer"]
-custom_minimum_size = Vector2(200, 100)
+custom_minimum_size = Vector2(220, 100)
+layout_mode = 2
 text = "MAYA"
 
 [node name="JaxButton" type="Button" parent="HBoxContainer"]
-custom_minimum_size = Vector2(200, 100)
+custom_minimum_size = Vector2(220, 100)
+layout_mode = 2
 text = "JAX"

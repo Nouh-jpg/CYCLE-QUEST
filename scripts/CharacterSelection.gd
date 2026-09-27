@@ -1,9 +1,11 @@
 extends Control
 
-@onready var maya_button = $HBoxContainer/MayaButton
-@onready var jax_button = $HBoxContainer/JaxButton
+@onready var maya_button: Button = $HBoxContainer/MayaButton
+@onready var jax_button: Button = $HBoxContainer/JaxButton
 
 func _ready() -> void:
+	get_tree().paused = false
+	GameManager.reset_run_state()
 	maya_button.pressed.connect(_on_maya_selected)
 	jax_button.pressed.connect(_on_jax_selected)
 

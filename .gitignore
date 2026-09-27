@@ -1,0 +1,8 @@
+.godot/
+*.translation
+export_presets.cfg
+*.apk
+*.aab
+*.zip
+*.pck
+.import/
