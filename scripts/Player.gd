@@ -25,6 +25,9 @@ const COIN_BASE_POINTS := 10
 const NEAR_MISS_POINTS := 25
 const BOOST_POINTS := 50
 const COMBO_GAP := 1.35
+const SPRITE_TARGET_HEIGHT := 2.2
+const MAYA_SPRITE_PATH := "res://assets/characters/maya_rider.png"
+const JAX_SPRITE_PATH := "res://assets/characters/jax_on_bike.png"
 
 var target_lane := 0 # -1 Left, 0 Center, 1 Right
 var is_jumping := false
@@ -82,7 +85,7 @@ func _apply_character_visuals() -> void:
 		return
 	_visuals_applied = true
 
-	# Hide stock capsule — detailed mesh hierarchy is the silhouette now.
+	# Hide stock capsule — drawn sprite billboards are the silhouette now.
 	if mesh_instance:
 		mesh_instance.visible = false
 
@@ -91,176 +94,82 @@ func _apply_character_visuals() -> void:
 	visual_root.scale = Vector3(VISUAL_SCALE, VISUAL_SCALE, VISUAL_SCALE)
 	add_child(visual_root)
 
-	var is_maya := GameManager.selected_character == "Maya"
-	var skin: Color = StyleKit.PALETTE["maya_skin"] if is_maya else StyleKit.PALETTE["jax_skin"]
-	var hair: Color = StyleKit.PALETTE["maya_hair"] if is_maya else StyleKit.PALETTE["jax_hair"]
-	var hair_dark: Color = StyleKit.PALETTE["maya_hair_dark"] if is_maya else StyleKit.PALETTE["jax_hair_dark"]
-	var bike: Color = StyleKit.PALETTE["maya_bike"] if is_maya else StyleKit.PALETTE["jax_bike"]
-	var bike_accent: Color = StyleKit.PALETTE["maya_bike_accent"] if is_maya else StyleKit.PALETTE["jax_bike_accent"]
-	var iris: Color = StyleKit.PALETTE["eye_iris_maya"] if is_maya else StyleKit.PALETTE["eye_iris_jax"]
-
-	if is_maya:
-		_build_maya(visual_root, skin, hair, hair_dark, bike, bike_accent, iris)
-	else:
-		_build_jax(visual_root, skin, hair, hair_dark, bike, bike_accent, iris)
-
-func _build_maya(root: Node3D, skin: Color, hair: Color, hair_dark: Color, bike: Color, bike_accent: Color, iris: Color) -> void:
-	# Simplified silhouette for readable Genesis-scale runner (bold, fewer parts).
-	var hair_hi: Color = StyleKit.PALETTE["maya_hair_accent"]
-	var outfit: Color = StyleKit.PALETTE["maya_outfit"]
-	var skirt_col: Color = StyleKit.PALETTE["maya_skirt"]
-	var black := Color(0.08, 0.06, 0.1)
-
-	# Head
-	_add_mesh(root, _sphere(0.36), Vector3(0, 1.52, -0.02), skin, {
-		"outline_width": 0.045, "emission_strength": 0.08, "emission_color": skin, "base_glow": 0.02
-	})
-	_add_mesh(root, _box(Vector3(0.48, 0.38, 0.1)), Vector3(0, 1.45, -0.3), skin, {
-		"outline_width": 0.03, "emission_strength": 0.12, "emission_color": skin, "base_glow": 0.02
-	})
-	# Eyes
-	for side in [-1.0, 1.0]:
-		var eye := Node3D.new()
-		eye.position = Vector3(side * 0.15, 1.48, -0.34)
-		root.add_child(eye)
-		_add_mesh(eye, _sphere(0.13), Vector3.ZERO, StyleKit.PALETTE["eye_white"], {
-			"outline_width": 0.02, "emission_strength": 0.2, "emission_color": Color(1, 1, 1)
-		}).scale = Vector3(0.85, 1.15, 0.7)
-		_add_mesh(eye, _sphere(0.08), Vector3(0, -0.01, -0.07), iris, {
-			"outline_width": 0.0, "emission_strength": 0.3, "emission_color": iris
-		})
-		_add_mesh(eye, _sphere(0.035), Vector3(0, -0.012, -0.1), StyleKit.PALETTE["eye_pupil"], {
-			"outline_width": 0.0
-		})
-
-	# Crimson hair mass — chunky silhouette, not micro-detail
-	_add_mesh(root, _sphere(0.44), Vector3(0, 1.72, 0.02), hair, {
-		"outline_width": 0.06, "emission_strength": 0.55, "emission_color": hair, "base_glow": 0.1
-	})
-	_add_mesh(root, _sphere(0.16), Vector3(-0.14, 1.68, -0.26), hair, {
-		"outline_width": 0.03, "emission_strength": 0.35, "emission_color": hair
-	})
-	_add_mesh(root, _sphere(0.16), Vector3(0.14, 1.68, -0.26), hair, {
-		"outline_width": 0.03, "emission_strength": 0.35, "emission_color": hair
-	})
-	_add_mesh(root, _sphere(0.18), Vector3(-0.38, 1.45, 0.0), hair, {
-		"outline_width": 0.03, "emission_strength": 0.32, "emission_color": hair
-	})
-	_add_mesh(root, _sphere(0.18), Vector3(0.38, 1.45, 0.0), hair, {
-		"outline_width": 0.03, "emission_strength": 0.32, "emission_color": hair
-	})
-	# Rear volume + twin tails
-	_add_mesh(root, _sphere(0.52), Vector3(0, 1.48, 0.4), hair, {
-		"outline_width": 0.06, "emission_strength": 0.6, "emission_color": hair, "base_glow": 0.12
-	})
-	_add_mesh(root, _sphere(0.36), Vector3(0, 1.15, 0.52), hair_dark, {
-		"outline_width": 0.045, "emission_strength": 0.35, "emission_color": hair_dark
-	})
-	for side in [-1.0, 1.0]:
-		_add_mesh(root, _capsule(0.11, 0.65), Vector3(side * 0.36, 0.7, 0.55), hair, {
-			"outline_width": 0.03, "emission_strength": 0.38, "emission_color": hair
-		}).rotation_degrees = Vector3(18.0, 0.0, side * -14.0)
-		_add_mesh(root, _sphere(0.1), Vector3(side * 0.48, 0.22, 0.48), hair_hi, {
-			"outline_width": 0.02, "emission_strength": 0.45, "emission_color": hair_hi
-		})
-
-	# Body
-	_add_mesh(root, _box(Vector3(0.52, 0.5, 0.3)), Vector3(0, 1.02, 0.02), outfit, {
-		"outline_width": 0.04, "emission_strength": 0.06, "emission_color": outfit, "base_glow": 0.02
-	})
-	_add_mesh(root, _box(Vector3(0.18, 0.42, 0.32)), Vector3(0, 1.02, -0.01), skirt_col, {
-		"outline_width": 0.02, "emission_strength": 0.2, "emission_color": skirt_col
-	})
-	_add_mesh(root, _box(Vector3(0.68, 0.26, 0.4)), Vector3(0, 0.7, 0.05), skirt_col, {
-		"outline_width": 0.04, "emission_strength": 0.18, "emission_color": skirt_col, "base_glow": 0.03
-	})
-	for side in [-1.0, 1.0]:
-		_add_mesh(root, _capsule(0.085, 0.4), Vector3(side * 0.4, 1.02, -0.1), outfit, {
-			"outline_width": 0.025, "emission_strength": 0.06, "emission_color": outfit
-		}).rotation_degrees = Vector3(55.0, 0.0, side * 25.0)
-		_add_mesh(root, _capsule(0.09, 0.36), Vector3(side * 0.15, 0.4, 0.05), black, {
-			"outline_width": 0.025, "emission_strength": 0.05, "emission_color": black
-		}).rotation_degrees = Vector3(70.0, 0.0, side * 8.0)
-
-	_build_bike(root, bike, bike_accent, true)
-
-func _build_jax(root: Node3D, skin: Color, hair: Color, hair_dark: Color, bike: Color, bike_accent: Color, iris: Color) -> void:
-	_add_mesh(root, _capsule(0.36, 1.1), Vector3(0, 0.92, 0), skin, {
-		"outline_width": 0.04, "emission_strength": 0.1, "emission_color": skin, "base_glow": 0.02
-	})
-	_add_mesh(root, _box(Vector3(0.48, 0.38, 0.1)), Vector3(0, 1.32, -0.28), skin, {
-		"outline_width": 0.025, "emission_strength": 0.12, "emission_color": skin
-	})
-	for side in [-1.0, 1.0]:
-		var eye := Node3D.new()
-		eye.position = Vector3(side * 0.17, 1.32, -0.32)
-		root.add_child(eye)
-		_add_mesh(eye, _sphere(0.11), Vector3.ZERO, StyleKit.PALETTE["eye_white"], {
-			"outline_width": 0.015, "emission_strength": 0.18, "emission_color": Color(1, 1, 1)
-		})
-		_add_mesh(eye, _sphere(0.065), Vector3(0, -0.01, -0.07), iris, {
-			"outline_width": 0.0, "emission_strength": 0.25, "emission_color": iris
-		})
-	_add_mesh(root, _sphere(0.4), Vector3(0, 1.52, 0.05), hair, {
-		"outline_width": 0.05, "emission_strength": 0.35, "emission_color": hair, "base_glow": 0.06
-	})
-	_add_mesh(root, _sphere(0.44), Vector3(0, 1.35, 0.36), hair, {
-		"outline_width": 0.05, "emission_strength": 0.38, "emission_color": hair
-	})
-	_add_mesh(root, _box(Vector3(0.2, 0.4, 0.18)), Vector3(-0.18, 1.78, 0.05), hair, {
-		"outline_width": 0.02, "emission_strength": 0.25, "emission_color": hair
-	})
-	_add_mesh(root, _box(Vector3(0.2, 0.46, 0.18)), Vector3(0.16, 1.84, 0.08), hair_dark, {
-		"outline_width": 0.02, "emission_strength": 0.25, "emission_color": hair_dark
-	})
-	_add_mesh(root, _box(Vector3(0.52, 0.48, 0.28)), Vector3(0, 0.92, 0.02), Color(0.1, 0.25, 0.4), {
-		"outline_width": 0.035, "emission_strength": 0.1, "emission_color": Color(0.1, 0.35, 0.55)
-	})
-	_build_bike(root, bike, bike_accent, false)
-
-func _build_bike(root: Node3D, bike: Color, bike_accent: Color, is_maya: bool) -> void:
-	bike_root = Node3D.new()
-	bike_root.name = "Bike"
-	bike_root.position = Vector3(0, 0.1, 0.12)
-	root.add_child(bike_root)
-	_add_mesh(bike_root, _box(Vector3(0.85, 0.36, 1.55)), Vector3(0, 0.34, 0), bike, {
-		"outline_width": 0.05, "emission_strength": 0.25, "emission_color": bike, "base_glow": 0.04
-	})
-	_add_mesh(bike_root, _box(Vector3(0.9, 0.26, 0.5)), Vector3(0, 0.52, -0.42), bike_accent, {
-		"outline_width": 0.035, "emission_strength": 0.35, "emission_color": bike_accent
-	})
-	_add_mesh(bike_root, _box(Vector3(0.8, 0.08, 0.08)), Vector3(0, 0.74, -0.32), Color(0.1, 0.08, 0.12), {
-		"outline_width": 0.02, "emission_strength": 0.05, "emission_color": Color(0.2, 0.15, 0.25)
-	})
-	_add_mesh(bike_root, _box(Vector3(0.72, 0.24, 0.46)), Vector3(0, 0.46, 0.55), bike_accent, {
-		"outline_width": 0.03, "emission_strength": 0.35, "emission_color": bike_accent
-	})
-	for side in [-1.0, 1.0]:
-		var panel_col := Color(0.08, 0.06, 0.1) if is_maya else Color(0.05, 0.2, 0.3)
-		_add_mesh(bike_root, _box(Vector3(0.08, 0.26, 1.0)), Vector3(side * 0.46, 0.36, 0.05), panel_col, {
-			"outline_width": 0.02, "emission_strength": 0.08, "emission_color": panel_col
-		})
-	# Wheels as spin hubs (rotate local X while rolling along -Z)
+	bike_root = null
 	wheel_nodes.clear()
-	for wz in [-0.55, 0.58]:
-		var hub := Node3D.new()
-		hub.name = "Wheel"
-		hub.position = Vector3(0, 0.32, wz)
-		bike_root.add_child(hub)
-		_add_mesh(hub, _cylinder(WHEEL_RADIUS, 0.15), Vector3.ZERO, Color(0.12, 0.1, 0.16), {
-			"outline_width": 0.03, "emission_strength": 0.08, "emission_color": Color(0.35, 0.2, 0.4)
-		}).rotation_degrees.z = 90.0
-		_add_mesh(hub, _cylinder(0.13, 0.17), Vector3.ZERO, bike_accent, {
-			"outline_width": 0.0, "emission_strength": 0.35, "emission_color": bike_accent
-		}).rotation_degrees.z = 90.0
-		# Spoke mark so spin reads
-		_add_mesh(hub, _box(Vector3(0.04, WHEEL_RADIUS * 1.6, 0.04)), Vector3.ZERO, Color(0.85, 0.85, 0.9), {
-			"outline_width": 0.0, "emission_strength": 0.12, "emission_color": Color(0.85, 0.85, 0.9)
-		})
-		wheel_nodes.append(hub)
-	var neon: Color = StyleKit.PALETTE["neon"] if not is_maya else Color(1.0, 0.35, 0.55)
-	_add_mesh(bike_root, _box(Vector3(0.18, 0.07, 1.2)), Vector3(0, 0.16, 0), neon, {
-		"outline_width": 0.0, "emission_strength": 0.65, "emission_color": neon, "rim_amount": 0.0
+
+	var is_maya := GameManager.selected_character == "Maya"
+	if is_maya:
+		_build_maya(visual_root)
+	else:
+		_build_jax(visual_root)
+
+func _build_maya(root: Node3D) -> void:
+	var spr := _make_rider_sprite(MAYA_SPRITE_PATH)
+	if spr:
+		root.add_child(spr)
+	else:
+		_build_maya_fallback(root)
+
+func _build_jax(root: Node3D) -> void:
+	var spr := _make_rider_sprite(JAX_SPRITE_PATH)
+	if spr:
+		root.add_child(spr)
+	else:
+		# Layer bike + rider if composite missing
+		var bike_spr := _make_rider_sprite("res://assets/characters/bike_red.png", 1.6)
+		var rider_spr := _make_rider_sprite("res://assets/characters/jax_rider.png", 1.9)
+		if bike_spr:
+			bike_spr.position.y = 0.55
+			bike_spr.position.z = 0.02
+			root.add_child(bike_spr)
+		if rider_spr:
+			rider_spr.position.y = 1.05
+			rider_spr.position.z = -0.02
+			root.add_child(rider_spr)
+		if bike_spr == null and rider_spr == null:
+			_build_jax_fallback(root)
+
+func _make_rider_sprite(path: String, target_height: float = SPRITE_TARGET_HEIGHT) -> Sprite3D:
+	if not ResourceLoader.exists(path):
+		push_warning("Missing rider texture: %s" % path)
+		return null
+	var tex: Texture2D = load(path) as Texture2D
+	if tex == null:
+		push_warning("Failed to load rider texture: %s" % path)
+		return null
+	var spr := Sprite3D.new()
+	spr.name = "RiderSprite"
+	spr.texture = tex
+	spr.centered = true
+	spr.pixel_size = target_height / float(maxi(tex.get_height(), 1))
+	spr.position.y = target_height * 0.5
+	spr.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+	spr.transparent = true
+	spr.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
+	spr.double_sided = true
+	spr.shaded = false
+	spr.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	spr.render_priority = 1
+	return spr
+
+func _build_maya_fallback(root: Node3D) -> void:
+	var skin: Color = StyleKit.PALETTE["maya_skin"]
+	var hair: Color = StyleKit.PALETTE["maya_hair"]
+	_add_mesh(root, _capsule(0.28, 1.2), Vector3(0, 0.9, 0), skin, {
+		"outline_width": 0.04, "emission_strength": 0.1, "emission_color": skin
+	})
+	_add_mesh(root, _sphere(0.32), Vector3(0, 1.55, 0), hair, {
+		"outline_width": 0.05, "emission_strength": 0.4, "emission_color": hair
+	})
+
+func _build_jax_fallback(root: Node3D) -> void:
+	var skin: Color = StyleKit.PALETTE["jax_skin"]
+	var hair: Color = StyleKit.PALETTE["jax_hair"]
+	_add_mesh(root, _capsule(0.3, 1.15), Vector3(0, 0.9, 0), skin, {
+		"outline_width": 0.04, "emission_strength": 0.1, "emission_color": skin
+	})
+	_add_mesh(root, _sphere(0.34), Vector3(0, 1.5, 0), hair, {
+		"outline_width": 0.05, "emission_strength": 0.35, "emission_color": hair
 	})
 
 func _add_mesh(parent: Node3D, mesh: Mesh, pos: Vector3, color: Color, opts: Dictionary = {}) -> MeshInstance3D:
