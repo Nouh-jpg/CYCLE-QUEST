@@ -96,9 +96,9 @@ mesh = SubResource("CapsuleMesh_Player")
 shape = SubResource("CapsuleShape_Player")
 
 [node name="Camera3D" type="Camera3D" parent="Player"]
-transform = Transform3D(1, 0, 0, 0, 0.939693, -0.34202, 0, 0.34202, 0.939693, 0, 5.5, 9)
+transform = Transform3D(1, 0, 0, 0, 0.947, -0.321, 0, 0.321, 0.947, 0, 3.2, 6.5)
 current = true
-fov = 70.0
+fov = 65.0
 
 [node name="Chaser" parent="." instance=ExtResource("3_chaser")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 18)
