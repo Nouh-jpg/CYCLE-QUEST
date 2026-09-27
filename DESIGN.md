@@ -4,9 +4,12 @@
 A high-quality, "Temple Run" style infinite runner where the player rides a bike through challenging environments.
 
 ## Target Platforms
-- Google Play Store
-- Steam
-- Nintendo Switch
+This pass ships to two stores only:
+
+- Steam (Windows)
+- Google Play (Android)
+
+App Store and Nintendo Switch are out of scope until a later pass.
 
 ## Characters
 - **Maya** (Girl): Energetic and adventurous.
@@ -20,4 +23,4 @@ A high-quality, "Temple Run" style infinite runner where the player rides a bike
 - Bike-specific mechanics (e.g., drafting, boosts).
 
 ## Visual Style
-- **Cartoon Anime / Cel-shaded**: Vibrant neons, deep purples, inverted-hull outlines, bloom + SSAO. See `docs/ANIME_LOOK.md`. Optimized for Switch and Mobile.
+- **Cartoon Anime / Cel-shaded**: Vibrant neons, deep purples, inverted-hull outlines, bloom + SSAO. See `docs/ANIME_LOOK.md`. Frame the chase, the boost escape, and the magenta slide gate so they read in a Steam wishlist clip or a Play screenshot.

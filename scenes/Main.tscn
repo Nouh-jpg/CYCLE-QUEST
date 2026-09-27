@@ -101,7 +101,7 @@ current = true
 fov = 72.0
 
 [node name="Chaser" parent="." instance=ExtResource("3_chaser")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 18)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2, 0, 4.35)
 
 [node name="RoadManager" type="Node3D" parent="."]
 script = ExtResource("2_road_manager")

@@ -5,8 +5,13 @@ const BASE_FORWARD_SPEED := 15.0
 const MAX_FORWARD_SPEED := 28.0
 const SPEED_RAMP_PER_SEC := 0.32
 const SPEED_PER_SCORE := 0.028
-const BOOST_ADD := 8.0
-const BOOST_DURATION := 2.6
+const BOOST_ADD := 16.0
+const BOOST_DURATION := 3.2
+const BOOST_CAP := 42.0
+const HIT_PENALTY := 12.0
+const HIT_RECOVER := 4.2
+const MIN_FORWARD_SPEED := 7.0
+const HIT_IFRAME := 0.9
 const LANE_SWITCH_SPEED := 20.0
 const JUMP_FORCE := 9.5
 const GRAVITY := 24.0
@@ -50,6 +55,13 @@ var _lean_z := 0.0
 var _jump_stretch := 0.0
 var _run_time := 0.0
 var _boost_timer := 0.0
+var _speed_penalty := 0.0
+var _hit_iframe := 0.0
+var _stumble := 0.0
+## Cruise is the ramp without boost or a hit penalty. The chaser matches this,
+## not the surge, so a pickup can actually open the gap.
+var cruise_speed := BASE_FORWARD_SPEED
+var is_boosting := false
 var _coyote := 0.0
 var _jump_buf := 0.0
 var _combo_timer := 0.0
@@ -484,14 +496,21 @@ func _physics_process(delta: float) -> void:
 		combo = 0
 		_notify_combo()
 
-	# Speed ramp: smooth rise with time + score, boost spikes on top, hard cap
+	# Cruise ramps with the run. A boost sits well above it; a hit subtracts
+	# a penalty that recovers, so speed is not rewritten back to cruise next frame.
 	var ramp := BASE_FORWARD_SPEED + _run_time * SPEED_RAMP_PER_SEC + float(score) * SPEED_PER_SCORE
-	ramp = minf(ramp, MAX_FORWARD_SPEED)
+	cruise_speed = minf(ramp, MAX_FORWARD_SPEED)
 	if _boost_timer > 0.0:
 		_boost_timer -= delta
-		current_speed = minf(ramp + BOOST_ADD, MAX_FORWARD_SPEED + 2.0)
+		current_speed = minf(cruise_speed + BOOST_ADD, BOOST_CAP)
 	else:
-		current_speed = ramp
+		current_speed = cruise_speed
+	is_boosting = _boost_timer > 0.0
+	var recover := HIT_RECOVER * (2.2 if is_boosting else 1.0)
+	_speed_penalty = maxf(0.0, _speed_penalty - recover * delta)
+	_hit_iframe = maxf(0.0, _hit_iframe - delta)
+	_stumble = maxf(0.0, _stumble - delta)
+	current_speed = maxf(MIN_FORWARD_SPEED, current_speed - _speed_penalty)
 
 	# Forward movement (world -Z)
 	velocity.z = -current_speed
@@ -554,16 +573,18 @@ func _physics_process(delta: float) -> void:
 	_face_riders_to_camera()
 
 	if speed_particles:
-		speed_particles.emitting = current_speed >= SPEED_LINE_THRESHOLD
+		speed_particles.emitting = is_boosting or current_speed >= SPEED_LINE_THRESHOLD
 
 func _update_speed_feel(delta: float) -> void:
 	if camera == null:
 		return
-	# FOV punch scales with speed; shake decays
-	var t := clampf((current_speed - BASE_FORWARD_SPEED) / (MAX_FORWARD_SPEED - BASE_FORWARD_SPEED), 0.0, 1.0)
+	# FOV tracks cruise; the boost punches wider and a stumble dips it.
+	var t := clampf((minf(current_speed, MAX_FORWARD_SPEED) - BASE_FORWARD_SPEED) / (MAX_FORWARD_SPEED - BASE_FORWARD_SPEED), 0.0, 1.0)
 	var want_fov := lerpf(BASE_FOV, MAX_FOV, t)
-	if _boost_timer > 0.0:
-		want_fov += 3.0
+	if is_boosting:
+		want_fov += 8.0
+	if _stumble > 0.0:
+		want_fov -= 7.0
 	camera.fov = lerpf(camera.fov, want_fov, clampf(8.0 * delta, 0.0, 1.0))
 	_shake_amp = maxf(0.0, _shake_amp - delta * 9.0)
 	var shake := Vector3.ZERO
@@ -576,7 +597,11 @@ func _update_speed_feel(delta: float) -> void:
 	camera.position = _cam_base_pos + shake
 	var ui = get_tree().root.find_child("UI", true, false)
 	if ui and ui.has_method("update_speed"):
-		ui.update_speed(current_speed, MAX_FORWARD_SPEED)
+		ui.update_speed(current_speed, BOOST_CAP)
+	var ga := get_node_or_null("/root/GameAudio")
+	if ga and ga.has_method("set_speed_energy"):
+		var energy := clampf((current_speed - BASE_FORWARD_SPEED) / (BOOST_CAP - BASE_FORWARD_SPEED), 0.0, 1.0)
+		ga.set_speed_energy(energy)
 
 func _process(delta: float) -> void:
 	if visual_root != null and not GameManager.is_game_over:
@@ -696,10 +721,32 @@ func on_crash() -> void:
 	combo = 0
 	_combo_timer = 0.0
 
+## Obstacle contact. Does not end the run — the chaser does, if this slowdown
+## lets it close the gap.
+func on_obstacle_hit() -> void:
+	if GameManager.is_game_over or _hit_iframe > 0.0:
+		return
+	_hit_iframe = HIT_IFRAME
+	_boost_timer = 0.0
+	is_boosting = false
+	_speed_penalty = HIT_PENALTY
+	_stumble = 0.45
+	add_shake(0.48)
+	combo = 0
+	_combo_timer = 0.0
+	_play_squash(Vector3(1.35, 0.62, 1.35), 0.18)
+	_sfx("crash")
+	_notify_combo()
+	var ui = get_tree().root.find_child("UI", true, false)
+	if ui and ui.has_method("popup_points"):
+		ui.popup_points("SLOW!", Color(1.0, 0.35, 0.25))
+
 func apply_boost() -> void:
 	if GameManager.is_game_over:
 		return
 	_boost_timer = BOOST_DURATION
+	_speed_penalty = 0.0
+	is_boosting = true
 	_sfx("boost")
 	score += BOOST_POINTS
 	combo = max(combo, 1)

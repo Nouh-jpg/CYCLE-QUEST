@@ -6,7 +6,8 @@ const BTN := Vector2(112, 112)
 const GAP := 16.0
 const EDGE := 24.0
 
-## Project setting (bool). Defaults to touch-capable devices only.
+## Project setting (bool). Off for a clean Windows/Steam frame.
+## Android and other touch devices still show the pads.
 const SETTING_ALWAYS_SHOW := "cycle_quest/always_show_touch_controls"
 
 var _active := true
