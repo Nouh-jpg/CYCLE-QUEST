@@ -149,6 +149,9 @@ func _load_rider_texture(path: String) -> Texture2D:
 		var img := Image.new()
 		var err := img.load_png_from_buffer(bytes)
 		if err == OK and img.get_width() >= 2 and img.get_height() >= 2:
+			# Corrected rear PNGs are valid RGBA, but the studio plate is fully
+			# opaque gray. Punch that out and crop so the 3 m card is the rider.
+			img = _strip_studio_plate(img)
 			if img.has_mipmaps():
 				img.clear_mipmaps()
 			return ImageTexture.create_from_image(img)
@@ -158,6 +161,74 @@ func _load_rider_texture(path: String) -> Texture2D:
 			return imported
 	push_warning("Missing rider texture: %s" % path)
 	return null
+
+func _is_studio_plate_byte(r: int, g: int, b: int, a: int) -> bool:
+	if a < 250:
+		return false
+	var mx := maxi(r, maxi(g, b))
+	var mn := mini(r, mini(g, b))
+	return mx >= 176 and (mx - mn) <= 36
+
+func _seed_plate(data: PackedByteArray, seen: PackedByteArray, qx: PackedInt32Array, qy: PackedInt32Array, cursor: Array, w: int, x: int, y: int) -> void:
+	var idx := y * w + x
+	if seen[idx] != 0:
+		return
+	var i := idx * 4
+	if not _is_studio_plate_byte(int(data[i]), int(data[i + 1]), int(data[i + 2]), int(data[i + 3])):
+		return
+	seen[idx] = 1
+	var n: int = int(cursor[0])
+	qx[n] = x
+	qy[n] = y
+	cursor[0] = n + 1
+
+func _strip_studio_plate(img: Image) -> Image:
+	var w := img.get_width()
+	var h := img.get_height()
+	var corner := img.get_pixel(0, 0)
+	if corner.a < 0.98:
+		return img
+	if not _is_studio_plate_byte(int(corner.r * 255.0), int(corner.g * 255.0), int(corner.b * 255.0), int(corner.a * 255.0)):
+		return img
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	var data := img.get_data()
+	var seen := PackedByteArray()
+	seen.resize(w * h)
+	var qx := PackedInt32Array()
+	var qy := PackedInt32Array()
+	qx.resize(w * h)
+	qy.resize(w * h)
+	var cursor := [0]
+	for x in w:
+		_seed_plate(data, seen, qx, qy, cursor, w, x, 0)
+		_seed_plate(data, seen, qx, qy, cursor, w, x, h - 1)
+	for y in h:
+		_seed_plate(data, seen, qx, qy, cursor, w, 0, y)
+		_seed_plate(data, seen, qx, qy, cursor, w, w - 1, y)
+	var qh := 0
+	var qt: int = int(cursor[0])
+	while qh < qt:
+		var x: int = qx[qh]
+		var y: int = qy[qh]
+		qh += 1
+		var i := (y * w + x) * 4
+		data[i + 3] = 0
+		if x > 0:
+			_seed_plate(data, seen, qx, qy, cursor, w, x - 1, y)
+		if x + 1 < w:
+			_seed_plate(data, seen, qx, qy, cursor, w, x + 1, y)
+		if y > 0:
+			_seed_plate(data, seen, qx, qy, cursor, w, x, y - 1)
+		if y + 1 < h:
+			_seed_plate(data, seen, qx, qy, cursor, w, x, y + 1)
+		qt = int(cursor[0])
+	var out := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	out.set_data(w, h, false, Image.FORMAT_RGBA8, data)
+	var used := out.get_used_rect()
+	if used.size.x >= 2 and used.size.y >= 2 and (used.size.x < w or used.size.y < h):
+		out = out.get_region(used)
+	return out
 
 func _make_rider_sprite(path: String, target_height: float = SPRITE_TARGET_HEIGHT) -> MeshInstance3D:
 	var tex := _load_rider_texture(path)
