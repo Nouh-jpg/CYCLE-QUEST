@@ -6,8 +6,7 @@ const BTN := Vector2(112, 112)
 const GAP := 16.0
 const EDGE := 24.0
 
-## Project setting (bool). Default true so desktop still shows controls for this slice.
-## Set false to auto-show only on touchscreen / mobile / android / ios.
+## Project setting (bool). Defaults to touch-capable devices only.
 const SETTING_ALWAYS_SHOW := "cycle_quest/always_show_touch_controls"
 
 var _active := true
@@ -144,8 +143,7 @@ func _release_all() -> void:
 	_held_actions.clear()
 
 func _should_show() -> bool:
-	# Default true for this vertical slice so desktop testing works without a touchscreen.
-	var always := true
+	var always := false
 	if ProjectSettings.has_setting(SETTING_ALWAYS_SHOW):
 		always = bool(ProjectSettings.get_setting(SETTING_ALWAYS_SHOW))
 	if always:
