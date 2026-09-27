@@ -1,7 +1,7 @@
 extends Control
 
-@onready var maya_button: Button = $HBoxContainer/MayaButton
-@onready var jax_button: Button = $HBoxContainer/JaxButton
+@onready var maya_button: Button = $CardLeft/MayaButton
+@onready var jax_button: Button = $CardRight/JaxButton
 
 func _ready() -> void:
 	get_tree().paused = false

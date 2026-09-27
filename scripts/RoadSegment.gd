@@ -1,215 +1,134 @@
 extends Node3D
-## Genesis / OutRun road chunk: high-contrast lanes, bold roadside props.
+## Repeating set piece for the Neon Avenue route.
 
-var _bobbers: Array[Node3D] = []
-var _anim_t := 0.0
-var _bob_phase := 0.0
+const SECTION_LENGTH := 20.0
+
+const CONCRETE := Color(0.24, 0.25, 0.39)
+const SHOULDER := Color(0.075, 0.10, 0.19)
+const BUILDING_COLORS := [
+	Color(0.19, 0.20, 0.37),
+	Color(0.15, 0.25, 0.38),
+	Color(0.27, 0.17, 0.37),
+]
+const WINDOW_COLORS := [Color(0.16, 0.78, 1.0), Color(1.0, 0.37, 0.72)]
+
+var _section_index := 0
 
 func _ready() -> void:
-	_bob_phase = randf() * TAU
+	_section_index = absi(int(round(position.z / SECTION_LENGTH)))
 	_style_road()
-	_add_roadside_ground()
-	_add_lane_markers()
-	_add_center_dashes()
-	_add_neon_edges()
-	_spawn_roadside_prop()
-	if randf() < 0.55:
-		_spawn_roadside_prop()
-
-func _process(delta: float) -> void:
-	_anim_t += delta
-	for i in _bobbers.size():
-		var n := _bobbers[i]
-		if not is_instance_valid(n):
-			continue
-		var phase := _bob_phase + float(i) * 1.7
-		n.position.y = sin(_anim_t * 2.4 + phase) * 0.12
-		n.rotation_degrees.y = sin(_anim_t * 1.3 + phase) * 4.0
+	_build_sidewalks()
+	_build_lane_markers()
+	_build_neon_edges()
+	_build_street_lamps()
+	if _section_index % 2 == 0:
+		_build_tree((-1.0 if _section_index % 4 == 0 else 1.0) * 10.2, 0.0)
+	if _section_index % 3 == 0:
+		_build_city_facade((-1.0 if _section_index % 2 == 0 else 1.0) * 15.2, 0.0)
 
 func _style_road() -> void:
 	var mesh_node := get_node_or_null("Mesh") as MeshInstance3D
 	if mesh_node:
 		StyleKit.apply_to_mesh(mesh_node, StyleKit.PALETTE["road"], {
-			"outline_width": 0.015,
-			"rim_amount": 0.1,
-			"base_glow": 0.02,
+			"outline_width": 0.0,
+			"base_glow": 0.01,
 		})
 
-func _add_roadside_ground() -> void:
+func _build_sidewalks() -> void:
 	for side in [-1.0, 1.0]:
-		var grass := MeshInstance3D.new()
-		var gm := BoxMesh.new()
-		gm.size = Vector3(8.0, 0.12, 20.0)
-		grass.mesh = gm
-		grass.position = Vector3(side * 9.0, -0.02, 0)
-		add_child(grass)
-		var col: Color = StyleKit.PALETTE["roadside"] if side < 0.0 else StyleKit.PALETTE["roadside_alt"]
-		StyleKit.apply_to_mesh(grass, col, {
-			"outline_width": 0.0, "base_glow": 0.04, "emission_strength": 0.08, "emission_color": col
-		})
+		_add_box(Vector3(side * 10.6, -0.02, 0.0), Vector3(9.3, 0.12, SECTION_LENGTH), SHOULDER)
+		_add_box(Vector3(side * 5.75, 0.055, 0.0), Vector3(1.35, 0.19, SECTION_LENGTH), CONCRETE)
+		_add_box(Vector3(side * 5.05, 0.18, 0.0), Vector3(0.08, 0.05, SECTION_LENGTH), Color(0.08, 0.82, 0.94), 0.0, 0.45)
 
-func _add_lane_markers() -> void:
+		# Short paving cuts make the edge feel built instead of painted on.
+		for i in range(5):
+			_add_box(Vector3(side * 5.75, 0.157, -8.0 + i * 4.0), Vector3(1.18, 0.018, 0.035), Color(0.37, 0.38, 0.51))
+
+func _build_lane_markers() -> void:
 	for x in [-1.5, 1.5]:
-		var stripe := MeshInstance3D.new()
-		var m := BoxMesh.new()
-		m.size = Vector3(0.14, 0.05, 20.0)
-		stripe.mesh = m
-		stripe.position = Vector3(x, 0.14, 0)
-		add_child(stripe)
-		StyleKit.apply_to_mesh(stripe, StyleKit.PALETTE["road_lane"], {
-			"outline_width": 0.0,
-			"emission_strength": 0.28,
-			"emission_color": StyleKit.PALETTE["road_lane"],
-			"base_glow": 0.05,
-		})
-
-func _add_center_dashes() -> void:
+		_add_box(Vector3(x, 0.125, 0.0), Vector3(0.045, 0.025, SECTION_LENGTH), Color(0.54, 0.62, 0.78))
 	for i in range(-4, 5):
-		var dash := MeshInstance3D.new()
-		var m := BoxMesh.new()
-		m.size = Vector3(0.4, 0.06, 1.4)
-		dash.mesh = m
-		dash.position = Vector3(0, 0.15, float(i) * 2.2)
-		add_child(dash)
-		StyleKit.apply_to_mesh(dash, StyleKit.PALETTE["road_stripe"], {
-			"outline_width": 0.0,
-			"emission_strength": 0.4,
-			"emission_color": StyleKit.PALETTE["road_stripe"],
-			"base_glow": 0.06,
-		})
+		_add_box(Vector3(0.0, 0.16, float(i) * 2.2), Vector3(0.16, 0.035, 1.1), Color(1.0, 0.79, 0.36), 0.0, 0.22)
 
-func _add_neon_edges() -> void:
-	for x in [-5.05, 5.05]:
-		var edge := MeshInstance3D.new()
-		var m := BoxMesh.new()
-		m.size = Vector3(0.32, 0.45, 20.0)
-		edge.mesh = m
-		edge.position = Vector3(x, 0.24, 0)
-		add_child(edge)
-		StyleKit.apply_to_mesh(edge, StyleKit.PALETTE["road_edge"], {
-			"outline_width": 0.02,
-			"emission_strength": 0.55,
-			"emission_color": StyleKit.PALETTE["road_edge"],
-			"base_glow": 0.08,
-		})
+func _build_neon_edges() -> void:
+	for side in [-1.0, 1.0]:
+		_add_box(Vector3(side * 5.02, 0.24, 0.0), Vector3(0.12, 0.34, SECTION_LENGTH), Color(0.05, 0.78, 0.94), 0.0, 0.4)
 
-func _spawn_roadside_prop() -> void:
-	var kind := randi() % 4
-	var side := -1.0 if randf() < 0.5 else 1.0
-	var x := side * randf_range(6.8, 9.5)
-	var z := randf_range(-8.0, 8.0)
-	match kind:
-		0:
-			_add_tree(Vector3(x, 0, z))
-		1:
-			_add_palm(Vector3(x, 0, z))
-		2:
-			_add_pillar(Vector3(x, 0, z))
-		_:
-			_add_ramp_marker(Vector3(x, 0, z))
+func _build_street_lamps() -> void:
+	# The alternating placement gives the route a steady cadence without clutter.
+	var side := -1.0 if _section_index % 2 == 0 else 1.0
+	var x := side * 6.7
+	var accent: Color = WINDOW_COLORS[_section_index % WINDOW_COLORS.size()]
+	_add_cylinder(Vector3(x, 2.05, 0.0), 0.075, 4.1, Color(0.16, 0.18, 0.28))
+	_add_box(Vector3(x - side * 0.35, 4.0, 0.0), Vector3(0.78, 0.09, 0.13), Color(0.2, 0.22, 0.34))
+	_add_box(Vector3(x - side * 0.35, 3.92, 0.0), Vector3(0.36, 0.035, 0.22), accent, 0.0, 0.65)
+	_add_box(Vector3(x, 0.28, 0.0), Vector3(0.34, 0.22, 0.38), Color(0.17, 0.19, 0.3))
 
-func _add_tree(pos: Vector3) -> void:
-	var root := Node3D.new()
-	root.position = pos
-	add_child(root)
-	_bobbers.append(root)
-	var trunk := MeshInstance3D.new()
-	var tm := CylinderMesh.new()
-	tm.top_radius = 0.22
-	tm.bottom_radius = 0.35
-	tm.height = 2.4
-	tm.radial_segments = 8
-	trunk.mesh = tm
-	trunk.position = Vector3(0, 1.2, 0)
-	root.add_child(trunk)
-	StyleKit.apply_to_mesh(trunk, StyleKit.PALETTE["tree_trunk"], {"outline_width": 0.04, "base_glow": 0.02})
-	for off in [Vector3(0, 2.6, 0), Vector3(-0.55, 2.3, 0.2), Vector3(0.55, 2.35, -0.15), Vector3(0.1, 2.9, 0.1)]:
-		var leaf := MeshInstance3D.new()
-		var lm := SphereMesh.new()
-		lm.radius = 0.7
-		lm.height = 1.2
-		lm.radial_segments = 8
-		lm.rings = 4
-		leaf.mesh = lm
-		leaf.position = off
-		root.add_child(leaf)
-		StyleKit.apply_to_mesh(leaf, StyleKit.PALETTE["tree_leaf"], {
-			"outline_width": 0.045, "emission_strength": 0.15, "emission_color": StyleKit.PALETTE["tree_leaf"], "base_glow": 0.03
-		})
+func _build_tree(x: float, z: float) -> void:
+	# Three clean low-poly tiers replace the old wobbling sphere clusters.
+	var planter := _add_box(Vector3(x, 0.2, z), Vector3(1.65, 0.4, 1.65), Color(0.20, 0.22, 0.34))
+	planter.rotation_degrees.y = 45.0
+	_add_cylinder(Vector3(x, 1.45, z), 0.17, 2.5, Color(0.38, 0.24, 0.23))
+	_add_cone(Vector3(x, 2.4, z), 1.05, 1.8, Color(0.16, 0.52, 0.42))
+	_add_cone(Vector3(x, 3.25, z), 0.76, 1.5, Color(0.20, 0.67, 0.51))
+	_add_cone(Vector3(x, 4.0, z), 0.48, 1.1, Color(0.34, 0.78, 0.58))
 
-func _add_palm(pos: Vector3) -> void:
-	var root := Node3D.new()
-	root.position = pos
-	add_child(root)
-	_bobbers.append(root)
-	var trunk := MeshInstance3D.new()
-	var tm := CylinderMesh.new()
-	tm.top_radius = 0.16
-	tm.bottom_radius = 0.28
-	tm.height = 3.2
-	tm.radial_segments = 8
-	trunk.mesh = tm
-	trunk.position = Vector3(0, 1.6, 0)
-	trunk.rotation_degrees = Vector3(4, 0, 6)
-	root.add_child(trunk)
-	StyleKit.apply_to_mesh(trunk, StyleKit.PALETTE["tree_trunk"], {"outline_width": 0.035, "base_glow": 0.02})
-	for i in 5:
-		var frond := MeshInstance3D.new()
-		var fm := BoxMesh.new()
-		fm.size = Vector3(0.15, 0.08, 1.6)
-		frond.mesh = fm
-		var ang := float(i) * 72.0
-		frond.position = Vector3(0, 3.2, 0)
-		frond.rotation_degrees = Vector3(25.0, ang, 0.0)
-		root.add_child(frond)
-		StyleKit.apply_to_mesh(frond, StyleKit.PALETTE["palm_leaf"], {
-			"outline_width": 0.025, "emission_strength": 0.15, "emission_color": StyleKit.PALETTE["palm_leaf"]
-		})
+func _build_city_facade(x: float, z: float) -> void:
+	var palette_index := _section_index % BUILDING_COLORS.size()
+	var wall: Color = BUILDING_COLORS[palette_index]
+	var height := 6.0 + float((_section_index * 7) % 5)
+	var width := 4.4
+	var depth := 7.5
+	var side := signf(x)
+	var center := Vector3(x, height * 0.5, z)
+	_add_box(center, Vector3(width, height, depth), wall)
+	_add_box(Vector3(x, height + 0.12, z), Vector3(width + 0.35, 0.24, depth + 0.35), Color(0.24, 0.27, 0.42))
+	# Recessed-looking window bands on the face toward the road.
+	var facade_x := x - side * (width * 0.5 + 0.025)
+	var accent: Color = WINDOW_COLORS[palette_index % WINDOW_COLORS.size()]
+	for floor_index in range(1, int(height / 1.6)):
+		var y := float(floor_index) * 1.6
+		for col in range(3):
+			var z_offset := -2.2 + float(col) * 2.2
+			_add_box(Vector3(facade_x, y, z + z_offset), Vector3(0.045, 0.68, 1.15), Color(0.13, 0.21, 0.34))
+			_add_box(Vector3(facade_x - side * 0.03, y + 0.02, z + z_offset), Vector3(0.035, 0.045, 0.9), accent, 0.0, 0.22)
+	_add_box(Vector3(facade_x - side * 0.04, height * 0.5, z - depth * 0.5 + 0.45), Vector3(0.07, height * 0.68, 0.12), accent, 0.0, 0.34)
 
-func _add_pillar(pos: Vector3) -> void:
-	var root := Node3D.new()
-	root.position = pos
-	add_child(root)
-	_bobbers.append(root)
-	var pillar := MeshInstance3D.new()
-	var m := BoxMesh.new()
-	m.size = Vector3(0.55, 3.2, 0.55)
-	pillar.mesh = m
-	pillar.position = Vector3(0, 1.6, 0)
-	root.add_child(pillar)
-	StyleKit.apply_to_mesh(pillar, StyleKit.PALETTE["pillar"], {
-		"outline_width": 0.04, "emission_strength": 0.18, "emission_color": StyleKit.PALETTE["pillar"], "base_glow": 0.03
+func _add_box(pos: Vector3, size: Vector3, color: Color, outline: float = 0.0, emission: float = 0.0) -> MeshInstance3D:
+	var mesh_node := MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	mesh_node.mesh = mesh
+	mesh_node.position = pos
+	add_child(mesh_node)
+	StyleKit.apply_to_mesh(mesh_node, color, {
+		"outline_width": outline,
+		"emission_strength": emission,
+		"emission_color": color,
+		"base_glow": 0.015,
 	})
-	var cap := MeshInstance3D.new()
-	var cm := BoxMesh.new()
-	cm.size = Vector3(0.85, 0.25, 0.85)
-	cap.mesh = cm
-	cap.position = Vector3(0, 3.3, 0)
-	root.add_child(cap)
-	StyleKit.apply_to_mesh(cap, StyleKit.PALETTE["road_stripe"], {
-		"outline_width": 0.02, "emission_strength": 0.35, "emission_color": StyleKit.PALETTE["road_stripe"]
-	})
+	return mesh_node
 
-func _add_ramp_marker(pos: Vector3) -> void:
-	var root := Node3D.new()
-	root.position = pos
-	add_child(root)
-	_bobbers.append(root)
-	var ramp := MeshInstance3D.new()
-	var m := BoxMesh.new()
-	m.size = Vector3(1.4, 0.9, 2.2)
-	ramp.mesh = m
-	ramp.position = Vector3(0, 0.45, 0)
-	root.add_child(ramp)
-	StyleKit.apply_to_mesh(ramp, StyleKit.PALETTE["block"], {
-		"outline_width": 0.04, "emission_strength": 0.25, "emission_color": StyleKit.PALETTE["block"]
-	})
-	var stripe := MeshInstance3D.new()
-	var sm := BoxMesh.new()
-	sm.size = Vector3(1.5, 0.08, 0.35)
-	stripe.mesh = sm
-	stripe.position = Vector3(0, 0.95, 0)
-	root.add_child(stripe)
-	StyleKit.apply_to_mesh(stripe, StyleKit.PALETTE["road_stripe"], {
-		"outline_width": 0.0, "emission_strength": 0.35, "emission_color": StyleKit.PALETTE["road_stripe"]
-	})
+func _add_cylinder(pos: Vector3, radius: float, height: float, color: Color) -> void:
+	var mesh_node := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius * 0.88
+	mesh.bottom_radius = radius
+	mesh.height = height
+	mesh.radial_segments = 8
+	mesh_node.mesh = mesh
+	mesh_node.position = pos
+	add_child(mesh_node)
+	StyleKit.apply_to_mesh(mesh_node, color, {"outline_width": 0.0, "base_glow": 0.01})
+
+func _add_cone(pos: Vector3, radius: float, height: float, color: Color) -> void:
+	var mesh_node := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.0
+	mesh.bottom_radius = radius
+	mesh.height = height
+	mesh.radial_segments = 7
+	mesh_node.mesh = mesh
+	mesh_node.position = pos
+	add_child(mesh_node)
+	StyleKit.apply_to_mesh(mesh_node, color, {"outline_width": 0.015, "base_glow": 0.01})

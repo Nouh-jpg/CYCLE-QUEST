@@ -13,6 +13,7 @@ var stats_label: Label
 var popup_host: Control
 var danger_vignette: ColorRect
 var near_miss_flash: ColorRect
+var danger_edges: Array[ColorRect] = []
 var _popup_seq := 0
 
 func _ready() -> void:
@@ -32,14 +33,38 @@ func _ready() -> void:
 		ga.start_music()
 
 func _build_extra_hud() -> void:
+	# Dark translucent backing keeps the score readable over the bright road.
+	var hud_back := Panel.new()
+	hud_back.name = "HudBacking"
+	hud_back.position = Vector2(16, 16)
+	hud_back.size = Vector2(250, 148)
+	hud_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var hud_style := StyleBoxFlat.new()
+	hud_style.bg_color = Color(0.035, 0.025, 0.11, 0.78)
+	hud_style.border_width_left = 2
+	hud_style.border_width_top = 2
+	hud_style.border_width_right = 2
+	hud_style.border_width_bottom = 2
+	hud_style.border_color = Color(0.45, 0.82, 1.0, 0.7)
+	hud_style.corner_radius_top_left = 16
+	hud_style.corner_radius_top_right = 16
+	hud_style.corner_radius_bottom_left = 16
+	hud_style.corner_radius_bottom_right = 16
+	hud_back.add_theme_stylebox_override("panel", hud_style)
+	hud_back.z_index = -1
+	add_child(hud_back)
+	score_label.position = Vector2(30, 25)
+	score_label.size = Vector2(225, 43)
+	score_label.label_settings.font_size = 31
+
 	# Combo
 	combo_label = Label.new()
 	combo_label.name = "ComboLabel"
-	combo_label.position = Vector2(24, 64)
-	combo_label.size = Vector2(320, 36)
+	combo_label.position = Vector2(32, 67)
+	combo_label.size = Vector2(220, 30)
 	combo_label.text = ""
 	var cs := LabelSettings.new()
-	cs.font_size = 26
+	cs.font_size = 22
 	cs.font_color = Color(1.0, 0.55, 1.0)
 	cs.outline_size = 5
 	cs.outline_color = Color(0.15, 0.0, 0.25)
@@ -49,10 +74,10 @@ func _build_extra_hud() -> void:
 	# Speed meter
 	speed_label = Label.new()
 	speed_label.name = "SpeedLabel"
-	speed_label.position = Vector2(24, 100)
-	speed_label.size = Vector2(220, 28)
+	speed_label.position = Vector2(32, 105)
+	speed_label.size = Vector2(140, 25)
 	var ss := LabelSettings.new()
-	ss.font_size = 20
+	ss.font_size = 17
 	ss.font_color = Color(0.45, 1.0, 0.95)
 	ss.outline_size = 4
 	ss.outline_color = Color(0.0, 0.15, 0.2)
@@ -61,13 +86,15 @@ func _build_extra_hud() -> void:
 
 	speed_bar = ProgressBar.new()
 	speed_bar.name = "SpeedBar"
-	speed_bar.position = Vector2(24, 128)
-	speed_bar.size = Vector2(200, 14)
+	speed_bar.position = Vector2(160, 108)
+	speed_bar.size = Vector2(80, 14)
 	speed_bar.min_value = 0
 	speed_bar.max_value = 100
 	speed_bar.value = 0
 	speed_bar.show_percentage = false
 	speed_bar.modulate = Color(0.4, 1.0, 0.9)
+	speed_bar.add_theme_stylebox_override("background", _make_meter_style(Color(0.1, 0.12, 0.22, 0.95)))
+	speed_bar.add_theme_stylebox_override("fill", _make_meter_style(Color(0.2, 0.95, 0.82, 1.0)))
 	add_child(speed_bar)
 
 	# Floating popup host (center-ish)
@@ -93,12 +120,46 @@ func _build_extra_hud() -> void:
 	near_miss_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	near_miss_flash.z_index = 41
 	add_child(near_miss_flash)
+	_build_crash_vignette()
 
 	# Punchier score label
 	if score_label and score_label.label_settings:
 		score_label.label_settings.font_size = 36
 		score_label.label_settings.font_color = Color(1.0, 0.95, 0.35)
 		score_label.label_settings.outline_size = 6
+
+func _make_meter_style(color: Color) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.corner_radius_top_left = 7
+	style.corner_radius_top_right = 7
+	style.corner_radius_bottom_left = 7
+	style.corner_radius_bottom_right = 7
+	return style
+
+func _build_crash_vignette() -> void:
+	# Four soft red edge panels frame danger without hiding the road.
+	for edge in ["Top", "Bottom", "Left", "Right"]:
+		var panel := ColorRect.new()
+		panel.name = "DangerEdge%s" % edge
+		panel.color = Color(1.0, 0.035, 0.12, 0.0)
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.z_index = 39
+		match edge:
+			"Top":
+				panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+				panel.offset_bottom = 42.0
+			"Bottom":
+				panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+				panel.offset_top = -42.0
+			"Left":
+				panel.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
+				panel.offset_right = 42.0
+			"Right":
+				panel.set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
+				panel.offset_left = -42.0
+		add_child(panel)
+		danger_edges.append(panel)
 
 func _style_game_over_card() -> void:
 	game_over_panel.color = Color(0.06, 0.02, 0.14, 0.94)
@@ -166,6 +227,9 @@ func set_danger_level(level: float) -> void:
 	if level > 0.65:
 		a += sin(Time.get_ticks_msec() * 0.02) * 0.06
 	danger_vignette.color.a = maxf(0.0, a)
+	for edge in danger_edges:
+		if is_instance_valid(edge):
+			edge.color.a = clampf(level, 0.0, 1.0) * 0.38
 
 func popup_points(text: String, color: Color = Color.WHITE) -> void:
 	if popup_host == null:

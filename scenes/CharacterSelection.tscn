@@ -1,22 +1,78 @@
-[gd_scene load_steps=5 format=3 uid="uid://bqcharselect01"]
+[gd_scene load_steps=12 format=3 uid="uid://bqcharselect01"]
 
 [ext_resource type="Script" path="res://scripts/CharacterSelection.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/characters/maya_rider.png" id="2_maya"]
+[ext_resource type="Texture2D" path="res://assets/characters/jax_on_bike.png" id="3_jax"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_Maya"]
+bg_color = Color(0.23, 0.07, 0.18, 0.96)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 0.25, 0.55, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+shadow_color = Color(0.95, 0.1, 0.42, 0.24)
+shadow_size = 16
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_Jax"]
+bg_color = Color(0.04, 0.16, 0.25, 0.96)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.05, 0.83, 1, 1)
+corner_radius_top_left = 18
+corner_radius_top_right = 18
+corner_radius_bottom_right = 18
+corner_radius_bottom_left = 18
+shadow_color = Color(0.05, 0.7, 1, 0.22)
+shadow_size = 16
+
+[sub_resource type="LabelSettings" id="LabelSettings_Eyebrow"]
+font_size = 18
+font_color = Color(0.52, 1, 0.9, 1)
+outline_size = 3
+outline_color = Color(0.04, 0.12, 0.23, 1)
 
 [sub_resource type="LabelSettings" id="LabelSettings_Title"]
-font_size = 64
-font_color = Color(1, 0.75, 0.95, 1)
+font_size = 72
+font_color = Color(1, 0.94, 0.69, 1)
 outline_size = 10
-outline_color = Color(0.35, 0.1, 0.55, 1)
+outline_color = Color(0.16, 0.05, 0.29, 1)
 
 [sub_resource type="LabelSettings" id="LabelSettings_Sub"]
-font_size = 28
-font_color = Color(0.55, 1, 0.9, 1)
-outline_size = 4
-outline_color = Color(0.1, 0.05, 0.25, 1)
+font_size = 24
+font_color = Color(0.78, 0.86, 1, 1)
+outline_size = 3
+outline_color = Color(0.12, 0.04, 0.25, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_Card"]
+font_size = 22
+font_color = Color(1, 1, 1, 1)
+outline_size = 3
+outline_color = Color(0.04, 0.04, 0.12, 1)
 
 [sub_resource type="LabelSettings" id="LabelSettings_Hint"]
 font_size = 18
-font_color = Color(0.9, 0.85, 1, 1)
+font_color = Color(0.83, 0.91, 1, 1)
+outline_size = 3
+outline_color = Color(0.1, 0.04, 0.22, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_Pill"]
+bg_color = Color(0.12, 0.08, 0.24, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.72, 0.55, 1, 0.7)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
 
 [node name="CharacterSelection" type="Control"]
 layout_mode = 3
@@ -34,35 +90,56 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.22, 0.1, 0.42, 1)
+color = Color(0.11, 0.06, 0.25, 1)
 
-[node name="AccentTop" type="ColorRect" parent="."]
+[node name="GlowLeft" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 12.0
+offset_top = 216.0
+offset_bottom = 217.0
 grow_horizontal = 2
-color = Color(1, 0.4, 0.85, 1)
+color = Color(0.45, 0.13, 0.68, 0.28)
 
-[node name="AccentBottom" type="ColorRect" parent="."]
+[node name="GlowRight" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -12.0
+offset_top = -186.0
+offset_bottom = -185.0
 grow_horizontal = 2
 grow_vertical = 0
-color = Color(0.3, 1, 0.85, 1)
+color = Color(0.05, 0.72, 0.83, 0.22)
+
+[node name="AccentTop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 7.0
+grow_horizontal = 2
+color = Color(1, 0.31, 0.71, 1)
+
+[node name="Eyebrow" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 38.0
+offset_bottom = 68.0
+grow_horizontal = 2
+text = "★  NEON CITY GRAND PRIX  ★"
+label_settings = SubResource("LabelSettings_Eyebrow")
+horizontal_alignment = 1
 
 [node name="Title" type="Label" parent="."]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 70.0
-offset_bottom = 170.0
+offset_top = 62.0
+offset_bottom = 156.0
 grow_horizontal = 2
-text = "SELECT YOUR RIDER"
+text = "CYCLE QUEST"
 label_settings = SubResource("LabelSettings_Title")
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -71,46 +148,100 @@ vertical_alignment = 1
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 160.0
-offset_bottom = 210.0
+offset_top = 153.0
+offset_bottom = 192.0
 grow_horizontal = 2
-text = "A bright, fast bike escape"
+text = "PICK YOUR RIDER. OWN THE ROAD."
 label_settings = SubResource("LabelSettings_Sub")
 horizontal_alignment = 1
 
-[node name="HBoxContainer" type="HBoxContainer" parent="."]
+[node name="CardLeft" type="Panel" parent="."]
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -300.0
-offset_top = -70.0
-offset_right = 300.0
-offset_bottom = 70.0
+offset_left = -292.0
+offset_top = -105.0
+offset_right = -22.0
+offset_bottom = 110.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 70
-alignment = 1
+theme_override_styles/panel = SubResource("StyleBox_Maya")
 
-[node name="MayaButton" type="Button" parent="HBoxContainer"]
-custom_minimum_size = Vector2(240, 120)
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.85, 0.95, 1)
-theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 28
-text = "MAYA
-pink / purple"
+[node name="Portrait" type="TextureRect" parent="CardLeft"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 16.0
+offset_top = 12.0
+offset_right = -16.0
+offset_bottom = 145.0
+grow_horizontal = 2
+texture = ExtResource("2_maya")
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
 
-[node name="JaxButton" type="Button" parent="HBoxContainer"]
-custom_minimum_size = Vector2(240, 120)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.95, 1, 1)
+[node name="MayaButton" type="Button" parent="CardLeft"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 9.0
+offset_top = 151.0
+offset_right = -9.0
+offset_bottom = 206.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 0.83, 0.92, 1)
 theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 28
-text = "JAX
-blue / cyan"
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("StyleBox_Pill")
+text = "MAYA  •  RIDE"
+
+[node name="CardRight" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 22.0
+offset_top = -105.0
+offset_right = 292.0
+offset_bottom = 110.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBox_Jax")
+
+[node name="Portrait" type="TextureRect" parent="CardRight"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 16.0
+offset_top = 12.0
+offset_right = -16.0
+offset_bottom = 145.0
+grow_horizontal = 2
+texture = ExtResource("3_jax")
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
+
+[node name="JaxButton" type="Button" parent="CardRight"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 9.0
+offset_top = 151.0
+offset_right = -9.0
+offset_bottom = 206.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.78, 0.96, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("StyleBox_Pill")
+text = "JAX  •  RIDE"
 
 [node name="Hint" type="Label" parent="."]
 layout_mode = 1
@@ -119,12 +250,12 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -280.0
-offset_top = -80.0
-offset_right = 280.0
-offset_bottom = -40.0
+offset_left = -520.0
+offset_top = -77.0
+offset_right = 520.0
+offset_bottom = -43.0
 grow_horizontal = 2
 grow_vertical = 0
-text = "CHOOSE A RIDER     •     ARROWS TO DODGE     •     SPACE TO JUMP"
+text = "←  →  DODGE     •     SPACE  JUMP     •     ↓  SLIDE"
 label_settings = SubResource("LabelSettings_Hint")
 horizontal_alignment = 1

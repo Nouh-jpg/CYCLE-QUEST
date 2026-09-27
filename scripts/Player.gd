@@ -29,10 +29,10 @@ const SPRITE_TARGET_HEIGHT := 3.0
 const MAYA_SPRITE_PATH := "res://assets/characters/maya_rider_rear.png"
 const JAX_SPRITE_PATH := "res://assets/characters/jax_rider_rear.png"
 # Wheel centers as fractions of the rear card (x from the left, y from the top).
-const MAYA_REAR_WHEEL := Vector2(0.40, 0.91)
-const MAYA_FRONT_WHEEL := Vector2(0.42, 0.86)
-const JAX_REAR_WHEEL := Vector2(0.42, 0.90)
-const JAX_FRONT_WHEEL := Vector2(0.45, 0.84)
+const MAYA_REAR_WHEEL := Vector2(0.39, 0.86)
+const MAYA_FRONT_WHEEL := Vector2(0.79, 0.66)
+const JAX_REAR_WHEEL := Vector2(0.21, 0.84)
+const JAX_FRONT_WHEEL := Vector2(0.87, 0.80)
 
 var target_lane := 0 # -1 Left, 0 Center, 1 Right
 var is_jumping := false
@@ -282,8 +282,8 @@ func _build_rider_wheels(root: Node3D, card: MeshInstance3D, rear_uv: Vector2, f
 	var size := quad.size
 	# Rear ring is closer to the chase camera; the front ring is smaller and higher on the bike.
 	# Parent is visual_root (not the card) so bob/lean still move the wheels while look_at owns the card.
-	_add_spin_wheel(root, _wheel_spot(size, rear_uv, 0.1), size.y * 0.12, accent)
-	_add_spin_wheel(root, _wheel_spot(size, front_uv, 0.05), size.y * 0.085, accent)
+	_add_spin_wheel(root, _wheel_spot(size, rear_uv, 0.1), size.y * 0.14, accent)
+	_add_spin_wheel(root, _wheel_spot(size, front_uv, 0.05), size.y * 0.09, accent)
 
 func _wheel_spot(card_size: Vector2, uv: Vector2, z_bias: float) -> Vector3:
 	# Card bottom sits at y=0. uv.y is measured from the top of the drawing.
@@ -315,19 +315,34 @@ func _add_spin_wheel(parent: Node3D, pos: Vector3, radius: float, accent: Color)
 		"emission_color": Color(0.45, 0.45, 0.5),
 	})
 
-	var spoke := MeshInstance3D.new()
-	spoke.name = "Spoke"
-	var bar := BoxMesh.new()
-	bar.size = Vector3(radius * 0.22, radius * 1.75, radius * 0.18)
-	spoke.mesh = bar
-	spoke.position = Vector3(0.0, 0.0, radius * 0.08)
-	spoke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	hub.add_child(spoke)
-	StyleKit.apply_to_mesh(spoke, accent, {
-		"outline_width": 0.0,
-		"emission_strength": 0.95,
-		"emission_color": accent,
-	})
+	# Three narrow crossed spokes read as a spinning wheel instead of a single wobbling paddle.
+	for spoke_index in range(3):
+		var spoke := MeshInstance3D.new()
+		spoke.name = "Spoke%d" % spoke_index
+		var bar := BoxMesh.new()
+		bar.size = Vector3(radius * 0.075, radius * 1.62, radius * 0.10)
+		spoke.mesh = bar
+		spoke.position = Vector3(0.0, 0.0, radius * 0.08)
+		spoke.rotation_degrees.z = float(spoke_index) * 60.0
+		spoke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		hub.add_child(spoke)
+		StyleKit.apply_to_mesh(spoke, Color(0.55, 0.61, 0.72), {
+			"outline_width": 0.0,
+			"emission_strength": 0.16,
+			"emission_color": accent,
+		})
+	var axle := MeshInstance3D.new()
+	axle.name = "Axle"
+	var axle_mesh := CylinderMesh.new()
+	axle_mesh.top_radius = radius * 0.12
+	axle_mesh.bottom_radius = radius * 0.12
+	axle_mesh.height = radius * 0.16
+	axle_mesh.radial_segments = 12
+	axle.mesh = axle_mesh
+	axle.rotation_degrees.x = 90.0
+	axle.position.z = radius * 0.1
+	hub.add_child(axle)
+	StyleKit.apply_to_mesh(axle, accent, {"outline_width": 0.0, "emission_strength": 0.25})
 
 	wheel_nodes.append(hub)
 
@@ -595,7 +610,7 @@ func _update_ride_anim(delta: float) -> void:
 	# Wheel spin ∝ speed (rad/s = v / r). From the chase camera the axle is local Z,
 	# so rotate_z turns the ring in view. (rotate_x is the sideways axle and
 	# leaves these rear-view discs edge-on.)
-	var spin_rad := (current_speed / WHEEL_RADIUS) * delta * 1.15
+	var spin_rad := (current_speed / WHEEL_RADIUS) * delta
 	for w in wheel_nodes:
 		if is_instance_valid(w):
 			w.rotate_z(spin_rad)
