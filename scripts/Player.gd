@@ -17,6 +17,14 @@ var score := 0
 var current_speed := BASE_FORWARD_SPEED
 
 func _physics_process(delta: float) -> void:
+	# Set character visuals based on selection (only once at start)
+	if not "visuals_set" in self:
+		if GameManager.selected_character == "Maya":
+			self.modulate = Color(1, 0.6, 0.8)
+		else:
+			self.modulate = Color(0.6, 0.8, 1)
+		set("visuals_set", true)
+
 	# 1. Forward Movement
 	velocity.z = -current_speed
 	
