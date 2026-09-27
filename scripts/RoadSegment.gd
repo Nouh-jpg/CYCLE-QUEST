@@ -32,7 +32,7 @@ func _style_road() -> void:
 		StyleKit.apply_to_mesh(mesh_node, StyleKit.PALETTE["road"], {
 			"outline_width": 0.015,
 			"rim_amount": 0.1,
-			"base_glow": 0.08,
+			"base_glow": 0.02,
 		})
 
 func _add_roadside_ground() -> void:
@@ -45,7 +45,7 @@ func _add_roadside_ground() -> void:
 		add_child(grass)
 		var col: Color = StyleKit.PALETTE["roadside"] if side < 0.0 else StyleKit.PALETTE["roadside_alt"]
 		StyleKit.apply_to_mesh(grass, col, {
-			"outline_width": 0.0, "base_glow": 0.22, "emission_strength": 0.25, "emission_color": col
+			"outline_width": 0.0, "base_glow": 0.04, "emission_strength": 0.08, "emission_color": col
 		})
 
 func _add_lane_markers() -> void:
@@ -58,9 +58,9 @@ func _add_lane_markers() -> void:
 		add_child(stripe)
 		StyleKit.apply_to_mesh(stripe, StyleKit.PALETTE["road_lane"], {
 			"outline_width": 0.0,
-			"emission_strength": 0.75,
+			"emission_strength": 0.28,
 			"emission_color": StyleKit.PALETTE["road_lane"],
-			"base_glow": 0.2,
+			"base_glow": 0.05,
 		})
 
 func _add_center_dashes() -> void:
@@ -73,9 +73,9 @@ func _add_center_dashes() -> void:
 		add_child(dash)
 		StyleKit.apply_to_mesh(dash, StyleKit.PALETTE["road_stripe"], {
 			"outline_width": 0.0,
-			"emission_strength": 1.3,
+			"emission_strength": 0.4,
 			"emission_color": StyleKit.PALETTE["road_stripe"],
-			"base_glow": 0.25,
+			"base_glow": 0.06,
 		})
 
 func _add_neon_edges() -> void:
@@ -88,9 +88,9 @@ func _add_neon_edges() -> void:
 		add_child(edge)
 		StyleKit.apply_to_mesh(edge, StyleKit.PALETTE["road_edge"], {
 			"outline_width": 0.02,
-			"emission_strength": 1.9,
+			"emission_strength": 0.55,
 			"emission_color": StyleKit.PALETTE["road_edge"],
-			"base_glow": 0.35,
+			"base_glow": 0.08,
 		})
 
 func _spawn_roadside_prop() -> void:
@@ -122,7 +122,7 @@ func _add_tree(pos: Vector3) -> void:
 	trunk.mesh = tm
 	trunk.position = Vector3(0, 1.2, 0)
 	root.add_child(trunk)
-	StyleKit.apply_to_mesh(trunk, StyleKit.PALETTE["tree_trunk"], {"outline_width": 0.04, "base_glow": 0.1})
+	StyleKit.apply_to_mesh(trunk, StyleKit.PALETTE["tree_trunk"], {"outline_width": 0.04, "base_glow": 0.02})
 	for off in [Vector3(0, 2.6, 0), Vector3(-0.55, 2.3, 0.2), Vector3(0.55, 2.35, -0.15), Vector3(0.1, 2.9, 0.1)]:
 		var leaf := MeshInstance3D.new()
 		var lm := SphereMesh.new()
@@ -134,7 +134,7 @@ func _add_tree(pos: Vector3) -> void:
 		leaf.position = off
 		root.add_child(leaf)
 		StyleKit.apply_to_mesh(leaf, StyleKit.PALETTE["tree_leaf"], {
-			"outline_width": 0.045, "emission_strength": 0.35, "emission_color": StyleKit.PALETTE["tree_leaf"], "base_glow": 0.15
+			"outline_width": 0.045, "emission_strength": 0.15, "emission_color": StyleKit.PALETTE["tree_leaf"], "base_glow": 0.03
 		})
 
 func _add_palm(pos: Vector3) -> void:
@@ -152,7 +152,7 @@ func _add_palm(pos: Vector3) -> void:
 	trunk.position = Vector3(0, 1.6, 0)
 	trunk.rotation_degrees = Vector3(4, 0, 6)
 	root.add_child(trunk)
-	StyleKit.apply_to_mesh(trunk, StyleKit.PALETTE["tree_trunk"], {"outline_width": 0.035, "base_glow": 0.1})
+	StyleKit.apply_to_mesh(trunk, StyleKit.PALETTE["tree_trunk"], {"outline_width": 0.035, "base_glow": 0.02})
 	for i in 5:
 		var frond := MeshInstance3D.new()
 		var fm := BoxMesh.new()
@@ -163,7 +163,7 @@ func _add_palm(pos: Vector3) -> void:
 		frond.rotation_degrees = Vector3(25.0, ang, 0.0)
 		root.add_child(frond)
 		StyleKit.apply_to_mesh(frond, StyleKit.PALETTE["palm_leaf"], {
-			"outline_width": 0.025, "emission_strength": 0.4, "emission_color": StyleKit.PALETTE["palm_leaf"]
+			"outline_width": 0.025, "emission_strength": 0.15, "emission_color": StyleKit.PALETTE["palm_leaf"]
 		})
 
 func _add_pillar(pos: Vector3) -> void:
@@ -178,7 +178,7 @@ func _add_pillar(pos: Vector3) -> void:
 	pillar.position = Vector3(0, 1.6, 0)
 	root.add_child(pillar)
 	StyleKit.apply_to_mesh(pillar, StyleKit.PALETTE["pillar"], {
-		"outline_width": 0.04, "emission_strength": 0.45, "emission_color": StyleKit.PALETTE["pillar"], "base_glow": 0.15
+		"outline_width": 0.04, "emission_strength": 0.18, "emission_color": StyleKit.PALETTE["pillar"], "base_glow": 0.03
 	})
 	var cap := MeshInstance3D.new()
 	var cm := BoxMesh.new()
@@ -187,7 +187,7 @@ func _add_pillar(pos: Vector3) -> void:
 	cap.position = Vector3(0, 3.3, 0)
 	root.add_child(cap)
 	StyleKit.apply_to_mesh(cap, StyleKit.PALETTE["road_stripe"], {
-		"outline_width": 0.02, "emission_strength": 1.1, "emission_color": StyleKit.PALETTE["road_stripe"]
+		"outline_width": 0.02, "emission_strength": 0.35, "emission_color": StyleKit.PALETTE["road_stripe"]
 	})
 
 func _add_ramp_marker(pos: Vector3) -> void:
@@ -202,7 +202,7 @@ func _add_ramp_marker(pos: Vector3) -> void:
 	ramp.position = Vector3(0, 0.45, 0)
 	root.add_child(ramp)
 	StyleKit.apply_to_mesh(ramp, StyleKit.PALETTE["block"], {
-		"outline_width": 0.04, "emission_strength": 0.7, "emission_color": StyleKit.PALETTE["block"]
+		"outline_width": 0.04, "emission_strength": 0.25, "emission_color": StyleKit.PALETTE["block"]
 	})
 	var stripe := MeshInstance3D.new()
 	var sm := BoxMesh.new()
@@ -211,5 +211,5 @@ func _add_ramp_marker(pos: Vector3) -> void:
 	stripe.position = Vector3(0, 0.95, 0)
 	root.add_child(stripe)
 	StyleKit.apply_to_mesh(stripe, StyleKit.PALETTE["road_stripe"], {
-		"outline_width": 0.0, "emission_strength": 1.2, "emission_color": StyleKit.PALETTE["road_stripe"]
+		"outline_width": 0.0, "emission_strength": 0.35, "emission_color": StyleKit.PALETTE["road_stripe"]
 	})

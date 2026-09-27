@@ -69,14 +69,14 @@ static func make_toon(
 	mat.albedo_color = albedo
 	mat.roughness = float(opts.get("roughness", 0.68))
 	mat.metallic = float(opts.get("metallic", 0.0))
-	# Mild base glow so meshes pop against the sky and never read as void/black.
-	var base_glow := float(opts.get("base_glow", 0.18))
+	# Tiny default fill so unlit meshes stay readable without washing the scene.
+	var base_glow := float(opts.get("base_glow", 0.02))
 	var em_str := float(opts.get("emission_strength", 0.0))
 	var em_col: Color = opts.get("emission_color", albedo)
 	if em_str > 0.0:
 		mat.emission_enabled = true
 		mat.emission = em_col
-		mat.emission_energy_multiplier = em_str + base_glow * 0.35
+		mat.emission_energy_multiplier = em_str + base_glow * 0.15
 	elif base_glow > 0.0:
 		mat.emission_enabled = true
 		mat.emission = albedo

@@ -35,9 +35,9 @@ func _build_horizon_bands() -> void:
 		var col: Color = s["col"]
 		StyleKit.apply_to_mesh(mi, col, {
 			"outline_width": 0.0,
-			"emission_strength": 0.75,
+			"emission_strength": 0.25,
 			"emission_color": col,
-			"base_glow": 0.35,
+			"base_glow": 0.06,
 		})
 		_bands.append(mi)
 
@@ -79,8 +79,8 @@ func _make_cloud(pos: Vector3, scale_base: float) -> Node3D:
 			col = Color(1.0, 0.75, 0.95)  # pink-tinted puff
 		StyleKit.apply_to_mesh(mi, col, {
 			"outline_width": 0.05,
-			"emission_strength": 0.45,
+			"emission_strength": 0.12,
 			"emission_color": col,
-			"base_glow": 0.25,
+			"base_glow": 0.04,
 		})
 	return root

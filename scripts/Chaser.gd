@@ -38,10 +38,10 @@ func _apply_toon_look() -> void:
 		"outline_width": 0.055,
 		"rim_amount": 0.6,
 		"rim_color": StyleKit.PALETTE["chaser_accent"],
-		"emission_strength": 0.7,
+		"emission_strength": 0.35,
 		"emission_color": StyleKit.PALETTE["chaser"],
 		"shade_color": Color(0.25, 0.05, 0.4),
-		"base_glow": 0.2,
+		"base_glow": 0.05,
 	})
 
 	for side in [-1, 1]:
@@ -53,7 +53,7 @@ func _apply_toon_look() -> void:
 		horn.rotation_degrees.z = side * -25.0
 		_visual.add_child(horn)
 		StyleKit.apply_to_mesh(horn, StyleKit.PALETTE["chaser_accent"], {
-			"outline_width": 0.03, "emission_strength": 1.2, "emission_color": StyleKit.PALETTE["chaser_accent"]
+			"outline_width": 0.03, "emission_strength": 0.45, "emission_color": StyleKit.PALETTE["chaser_accent"]
 		})
 
 	for side in [-1, 1]:
@@ -68,7 +68,7 @@ func _apply_toon_look() -> void:
 		eye.name = "Eye%d" % (side + 2)
 		_visual.add_child(eye)
 		StyleKit.apply_to_mesh(eye, Color(1.0, 0.25, 0.45), {
-			"outline_width": 0.0, "emission_strength": 3.2, "emission_color": Color(1.0, 0.15, 0.4), "rim_amount": 0.0
+			"outline_width": 0.0, "emission_strength": 0.95, "emission_color": Color(1.0, 0.15, 0.4), "rim_amount": 0.0
 		})
 
 func _physics_process(delta: float) -> void:

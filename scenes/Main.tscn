@@ -48,17 +48,17 @@ ssao_detail = 0.5
 ssao_horizon = 0.06
 ssao_sharpness = 0.85
 glow_enabled = true
-glow_intensity = 1.25
-glow_strength = 1.35
-glow_bloom = 0.5
-glow_hdr_threshold = 0.75
-glow_hdr_scale = 2.0
-glow_hdr_luminance_cap = 12.0
+glow_intensity = 0.4
+glow_strength = 0.7
+glow_bloom = 0.2
+glow_hdr_threshold = 1.1
+glow_hdr_scale = 1.2
+glow_hdr_luminance_cap = 8.0
 glow_normalized = true
 adjustment_enabled = true
-adjustment_brightness = 1.05
-adjustment_contrast = 1.22
-adjustment_saturation = 1.75
+adjustment_brightness = 1.0
+adjustment_contrast = 1.1
+adjustment_saturation = 1.2
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributes_Main"]
 

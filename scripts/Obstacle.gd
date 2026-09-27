@@ -23,10 +23,10 @@ func _apply_toon_look() -> void:
 	StyleKit.apply_to_mesh(mesh_node, StyleKit.PALETTE["obstacle"], {
 		"outline_width": 0.05,
 		"rim_amount": 0.4,
-		"emission_strength": 0.55,
+		"emission_strength": 0.3,
 		"emission_color": StyleKit.PALETTE["obstacle"],
 		"shade_color": Color(0.45, 0.05, 0.15),
-		"base_glow": 0.15,
+		"base_glow": 0.04,
 	})
 	# Warning stripe accent — danger orange
 	var stripe := MeshInstance3D.new()
@@ -36,7 +36,7 @@ func _apply_toon_look() -> void:
 	stripe.position = Vector3(0, 0.35, 0)
 	add_child(stripe)
 	StyleKit.apply_to_mesh(stripe, StyleKit.PALETTE["obstacle_accent"], {
-		"outline_width": 0.0, "emission_strength": 1.4, "emission_color": StyleKit.PALETTE["obstacle_accent"], "rim_amount": 0.0
+		"outline_width": 0.0, "emission_strength": 0.5, "emission_color": StyleKit.PALETTE["obstacle_accent"], "rim_amount": 0.0
 	})
 	# Top warning beacon
 	var beacon := MeshInstance3D.new()
@@ -48,7 +48,7 @@ func _apply_toon_look() -> void:
 	beacon.name = "Beacon"
 	add_child(beacon)
 	StyleKit.apply_to_mesh(beacon, StyleKit.PALETTE["obstacle_accent"], {
-		"outline_width": 0.0, "emission_strength": 2.0, "emission_color": Color(1.0, 0.9, 0.2)
+		"outline_width": 0.0, "emission_strength": 0.7, "emission_color": Color(1.0, 0.9, 0.2)
 	})
 
 func _process(delta: float) -> void:

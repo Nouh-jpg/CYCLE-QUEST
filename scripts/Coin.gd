@@ -16,11 +16,11 @@ func _apply_toon_look() -> void:
 	StyleKit.apply_to_mesh(mesh_node, StyleKit.PALETTE["coin"], {
 		"outline_width": 0.035,
 		"rim_amount": 0.55,
-		"emission_strength": 2.2,
+		"emission_strength": 0.65,
 		"emission_color": StyleKit.PALETTE["coin"],
 		"highlight_mix": 0.4,
 		"shade_color": Color(0.7, 0.45, 0.05),
-		"base_glow": 0.35,
+		"base_glow": 0.06,
 	})
 
 func _process(delta: float) -> void:

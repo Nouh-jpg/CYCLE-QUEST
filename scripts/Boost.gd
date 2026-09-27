@@ -15,10 +15,10 @@ func _apply_toon_look() -> void:
 	StyleKit.apply_to_mesh(mesh_node, StyleKit.PALETTE["boost"], {
 		"outline_width": 0.045,
 		"rim_amount": 0.6,
-		"emission_strength": 2.4,
+		"emission_strength": 0.7,
 		"emission_color": StyleKit.PALETTE["boost"],
 		"shade_color": Color(0.05, 0.45, 0.25),
-		"base_glow": 0.4,
+		"base_glow": 0.08,
 	})
 	# Neon diamond tip
 	var tip := MeshInstance3D.new()
@@ -30,7 +30,7 @@ func _apply_toon_look() -> void:
 	tip.name = "Tip"
 	add_child(tip)
 	StyleKit.apply_to_mesh(tip, Color(0.55, 1.0, 0.2), {
-		"outline_width": 0.02, "emission_strength": 3.0, "emission_color": Color(0.5, 1.0, 0.15), "rim_amount": 0.0
+		"outline_width": 0.02, "emission_strength": 0.9, "emission_color": Color(0.5, 1.0, 0.15), "rim_amount": 0.0
 	})
 
 func _process(delta: float) -> void:
