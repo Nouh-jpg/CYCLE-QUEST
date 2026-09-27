@@ -20,4 +20,4 @@ A high-quality, "Temple Run" style infinite runner where the player rides a bike
 - Bike-specific mechanics (e.g., drafting, boosts).
 
 ## Visual Style
-- **Stylized/Low Poly**: Bright, clean, high-performance aesthetic (similar to Fortnite/Among Us). Optimized for Switch and Mobile.
+- **Cartoon Anime / Cel-shaded**: Vibrant neons, deep purples, inverted-hull outlines, bloom + SSAO. See `docs/ANIME_LOOK.md`. Optimized for Switch and Mobile.

@@ -1,12 +1,22 @@
-[gd_scene load_steps=3 format=3 uid="uid://bqcharselect01"]
+[gd_scene load_steps=5 format=3 uid="uid://bqcharselect01"]
 
 [ext_resource type="Script" path="res://scripts/CharacterSelection.gd" id="1_script"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_Title"]
 font_size = 64
-font_color = Color(1, 0.8, 0.4, 1)
-outline_size = 8
-outline_color = Color(0, 0, 0, 1)
+font_color = Color(1, 0.75, 0.95, 1)
+outline_size = 10
+outline_color = Color(0.35, 0.1, 0.55, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_Sub"]
+font_size = 28
+font_color = Color(0.55, 1, 0.9, 1)
+outline_size = 4
+outline_color = Color(0.1, 0.05, 0.25, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_Hint"]
+font_size = 18
+font_color = Color(0.9, 0.85, 1, 1)
 
 [node name="CharacterSelection" type="Control"]
 layout_mode = 3
@@ -24,14 +34,33 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.15, 0.1, 0.2, 1)
+color = Color(0.22, 0.1, 0.42, 1)
+
+[node name="AccentTop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 12.0
+grow_horizontal = 2
+color = Color(1, 0.4, 0.85, 1)
+
+[node name="AccentBottom" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -12.0
+grow_horizontal = 2
+grow_vertical = 0
+color = Color(0.3, 1, 0.85, 1)
 
 [node name="Title" type="Label" parent="."]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 80.0
-offset_bottom = 180.0
+offset_top = 70.0
+offset_bottom = 170.0
 grow_horizontal = 2
 text = "SELECT YOUR RIDER"
 label_settings = SubResource("LabelSettings_Title")
@@ -42,10 +71,11 @@ vertical_alignment = 1
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = 170.0
+offset_top = 160.0
 offset_bottom = 210.0
 grow_horizontal = 2
-text = "Cycle Quest"
+text = "Cycle Quest  •  Anime Street Run"
+label_settings = SubResource("LabelSettings_Sub")
 horizontal_alignment = 1
 
 [node name="HBoxContainer" type="HBoxContainer" parent="."]
@@ -55,21 +85,46 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -260.0
-offset_top = -60.0
-offset_right = 260.0
-offset_bottom = 60.0
+offset_left = -300.0
+offset_top = -70.0
+offset_right = 300.0
+offset_bottom = 70.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 60
+theme_override_constants/separation = 70
 alignment = 1
 
 [node name="MayaButton" type="Button" parent="HBoxContainer"]
-custom_minimum_size = Vector2(220, 100)
+custom_minimum_size = Vector2(240, 120)
 layout_mode = 2
-text = "MAYA"
+theme_override_colors/font_color = Color(1, 0.85, 0.95, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "MAYA
+pink / purple"
 
 [node name="JaxButton" type="Button" parent="HBoxContainer"]
-custom_minimum_size = Vector2(220, 100)
+custom_minimum_size = Vector2(240, 120)
 layout_mode = 2
-text = "JAX"
+theme_override_colors/font_color = Color(0.7, 0.95, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "JAX
+blue / cyan"
+
+[node name="Hint" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -280.0
+offset_top = -80.0
+offset_right = 280.0
+offset_bottom = -40.0
+grow_horizontal = 2
+grow_vertical = 0
+text = "Cel-shaded neon streets await — pick a rider!"
+label_settings = SubResource("LabelSettings_Hint")
+horizontal_alignment = 1

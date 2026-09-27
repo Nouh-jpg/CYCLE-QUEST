@@ -12,7 +12,7 @@ config_version=5
 
 config/name="Cycle Quest"
 run/main_scene="res://scenes/CharacterSelection.tscn"
-config/features=PackedStringArray("4.0", "Forward+")
+config/features=PackedStringArray("4.3", "Forward+")
 
 [autoload]
 
@@ -32,6 +32,9 @@ window/size/viewport_height=648
 [rendering]
 
 renderer/rendering_method="forward_plus"
+anti_aliasing/quality/msaa_3d=2
+anti_aliasing/quality/screen_space_aa=1
+textures/canvas_textures/default_texture_filter=1
 
 [input]
 

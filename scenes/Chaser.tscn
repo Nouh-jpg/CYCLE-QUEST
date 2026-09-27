@@ -3,10 +3,10 @@
 [ext_resource type="Script" path="res://scripts/Chaser.gd" id="1_script"]
 
 [sub_resource type="StandardMaterial3D" id="Mat_Chaser"]
-albedo_color = Color(0.35, 0.05, 0.45, 1)
+albedo_color = Color(0.55, 0.1, 0.85, 1)
 emission_enabled = true
-emission = Color(0.4, 0.05, 0.5, 1)
-emission_energy_multiplier = 0.4
+emission = Color(0.7, 0.15, 1, 1)
+emission_energy_multiplier = 0.8
 
 [sub_resource type="BoxMesh" id="BoxMesh_1"]
 material = SubResource("Mat_Chaser")
