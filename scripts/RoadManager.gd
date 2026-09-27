@@ -4,6 +4,7 @@ const SEGMENT_LENGTH := 20.0
 const INITIAL_SEGMENTS := 12
 const RENDER_DISTANCE := 6
 const CLEANUP_DISTANCE := 40.0
+const LANE_WIDTH := 3.0
 
 @export var road_segment_scene: PackedScene = preload("res://scenes/RoadSegment.tscn")
 @export var obstacle_scene: PackedScene = preload("res://scenes/Obstacle.tscn")
@@ -14,6 +15,9 @@ var player: Node3D
 var next_spawn_z := 0.0
 var active_segments: Array[Node3D] = []
 var active_props: Array[Node3D] = []
+## Soft telegraph: skip hard patterns for a few segments after a dense one.
+var _ease_segments := 0
+var _pattern_index := 0
 
 func _ready() -> void:
 	player = get_tree().root.find_child("Player", true, false)
@@ -40,19 +44,103 @@ func spawn_segment(with_props: bool = true) -> void:
 	active_segments.append(segment)
 
 	if with_props:
-		if randf() < 0.35:
-			_spawn_prop(obstacle_scene, next_spawn_z, 0.5)
-		if randf() < 0.55:
-			_spawn_prop(coin_scene, next_spawn_z, 1.0)
-		if randf() < 0.12:
-			_spawn_prop(boost_scene, next_spawn_z, 0.75)
+		_spawn_pattern(next_spawn_z)
 
 	next_spawn_z -= SEGMENT_LENGTH
 
-func _spawn_prop(scene: PackedScene, z_pos: float, y_pos: float) -> void:
-	var prop: Node3D = scene.instantiate()
+func _spawn_pattern(seg_z: float) -> void:
+	# Readable, telegraphed patterns — not pure random soup.
+	if _ease_segments > 0:
+		_ease_segments -= 1
+		# Light coin snack during ease so the road never feels empty
+		if randf() < 0.55:
+			_pattern_coin_line(seg_z, randi_range(-1, 1), 3)
+		return
+
+	var patterns := [
+		"single_block",
+		"two_gate",
+		"coin_line",
+		"coin_arc",
+		"coins_then_block",
+		"boost_lane",
+		"empty",
+	]
+	# Weight toward readable hazards after warm-up
+	_pattern_index += 1
+	var pick: String = patterns[randi() % patterns.size()]
+	if _pattern_index < 4 and pick in ["two_gate", "coins_then_block"]:
+		pick = "coin_line"
+
+	match pick:
+		"single_block":
+			_pattern_single_block(seg_z)
+			_ease_segments = 1
+		"two_gate":
+			_pattern_two_gate(seg_z)
+			_ease_segments = 1
+		"coin_line":
+			_pattern_coin_line(seg_z, randi_range(-1, 1), 5)
+		"coin_arc":
+			_pattern_coin_arc(seg_z)
+		"coins_then_block":
+			_pattern_coins_then_block(seg_z)
+			_ease_segments = 1
+		"boost_lane":
+			_pattern_boost(seg_z)
+		_:
+			pass
+
+func _pattern_single_block(seg_z: float) -> void:
 	var lane := randi_range(-1, 1)
-	prop.position = Vector3(lane * 3.0, y_pos, z_pos - randf_range(2.0, 16.0))
+	# Mid-segment so camera sees it with reaction space
+	_spawn_at(obstacle_scene, lane, 0.5, seg_z - 10.0)
+
+func _pattern_two_gate(seg_z: float) -> void:
+	var open := randi_range(-1, 1)
+	for lane in [-1, 0, 1]:
+		if lane != open:
+			_spawn_at(obstacle_scene, lane, 0.5, seg_z - 10.0)
+	# Coin bait through the open lane
+	_spawn_at(coin_scene, open, 1.0, seg_z - 6.0)
+	_spawn_at(coin_scene, open, 1.0, seg_z - 14.0)
+
+func _pattern_coin_line(seg_z: float, lane: int, count: int) -> void:
+	var start := 4.0
+	var step := 2.6
+	for i in count:
+		_spawn_at(coin_scene, lane, 1.0, seg_z - start - float(i) * step)
+
+func _pattern_coin_arc(seg_z: float) -> void:
+	# Arc across lanes: L -> C -> R -> C -> L (or mirrored)
+	var lanes := [-1, 0, 1, 0, -1]
+	if randf() < 0.5:
+		lanes = [1, 0, -1, 0, 1]
+	var start := 3.5
+	var step := 2.8
+	for i in lanes.size():
+		_spawn_at(coin_scene, lanes[i], 1.0, seg_z - start - float(i) * step)
+
+func _pattern_coins_then_block(seg_z: float) -> void:
+	var lane := randi_range(-1, 1)
+	# Coins first (farther ahead = more negative relative offset from seg front)
+	_spawn_at(coin_scene, lane, 1.0, seg_z - 4.0)
+	_spawn_at(coin_scene, lane, 1.0, seg_z - 6.5)
+	_spawn_at(coin_scene, lane, 1.0, seg_z - 9.0)
+	# Late obstacle after the reward — telegraph by spacing
+	_spawn_at(obstacle_scene, lane, 0.5, seg_z - 15.5)
+
+func _pattern_boost(seg_z: float) -> void:
+	var lane := randi_range(-1, 1)
+	_spawn_at(boost_scene, lane, 0.75, seg_z - 10.0)
+	# Clear the other lanes lightly so boost is readable
+	if randf() < 0.4:
+		var other := lane + 1 if lane < 1 else -1
+		_spawn_at(coin_scene, other, 1.0, seg_z - 6.0)
+
+func _spawn_at(scene: PackedScene, lane: int, y_pos: float, z_pos: float) -> void:
+	var prop: Node3D = scene.instantiate()
+	prop.position = Vector3(float(lane) * LANE_WIDTH, y_pos, z_pos)
 	add_child(prop)
 	active_props.append(prop)
 

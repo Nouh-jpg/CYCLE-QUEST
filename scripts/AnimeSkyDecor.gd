@@ -1,10 +1,11 @@
 extends Node3D
-## Horizon bands + bold cloud puffs for a Genesis / OutRun sky read.
+## Electric horizon bands + bold cloud puffs — arcade cabinet sky.
 
-@export var cloud_count := 8
+@export var cloud_count := 10
 var _clouds: Array[Node3D] = []
 var _bands: Array[MeshInstance3D] = []
 var player: Node3D
+var _anim_t := 0.0
 
 func _ready() -> void:
 	player = get_tree().root.find_child("Player", true, false)
@@ -16,12 +17,13 @@ func _ready() -> void:
 		))
 
 func _build_horizon_bands() -> void:
-	# Layered quads behind the road for strong horizon stripes (sky bands).
+	# Saturated electric stripes — no muddy midtones
 	var specs := [
-		{"y": 6.0, "h": 3.5, "col": Color(0.35, 0.7, 1.0), "z": -180.0},
-		{"y": 3.0, "h": 2.5, "col": Color(0.55, 0.85, 1.0), "z": -175.0},
-		{"y": 0.8, "h": 2.0, "col": Color(0.95, 0.75, 0.35), "z": -170.0},  # warm strip
-		{"y": -1.2, "h": 3.0, "col": Color(0.3, 0.65, 0.3), "z": -165.0},
+		{"y": 7.5, "h": 3.8, "col": Color(0.25, 0.55, 1.0), "z": -180.0},
+		{"y": 4.2, "h": 2.8, "col": Color(0.45, 0.85, 1.0), "z": -175.0},
+		{"y": 1.6, "h": 2.2, "col": Color(1.0, 0.45, 0.85), "z": -170.0},  # magenta band
+		{"y": -0.4, "h": 2.0, "col": Color(1.0, 0.75, 0.15), "z": -166.0},  # gold strip
+		{"y": -2.2, "h": 3.2, "col": Color(0.15, 0.85, 0.35), "z": -162.0},
 	]
 	for s in specs:
 		var mi := MeshInstance3D.new()
@@ -33,21 +35,23 @@ func _build_horizon_bands() -> void:
 		var col: Color = s["col"]
 		StyleKit.apply_to_mesh(mi, col, {
 			"outline_width": 0.0,
-			"emission_strength": 0.35,
+			"emission_strength": 0.75,
 			"emission_color": col,
-			"base_glow": 0.2,
+			"base_glow": 0.35,
 		})
 		_bands.append(mi)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_anim_t += delta
 	if player == null or not is_instance_valid(player):
 		player = get_tree().root.find_child("Player", true, false)
 		return
-	# Keep horizon bands locked ahead of the runner
-	for b in _bands:
+	for i in _bands.size():
+		var b := _bands[i]
 		b.global_position.x = player.global_position.x
 		b.global_position.z = player.global_position.z - 160.0
 	for c in _clouds:
+		c.rotate_y(delta * 0.15)
 		if c.global_position.z > player.global_position.z + 30.0:
 			c.global_position.z = player.global_position.z - randf_range(70.0, 150.0)
 			c.global_position.x = randf_range(-34, 34)
@@ -70,11 +74,13 @@ func _make_cloud(pos: Vector3, scale_base: float) -> Node3D:
 		mi.position = Vector3(randf_range(-scale_base, scale_base), randf_range(-0.3, 0.5), randf_range(-scale_base * 0.3, scale_base * 0.3))
 		mi.scale = Vector3(1.0, 0.6, 1.0)
 		root.add_child(mi)
-		var col := Color(1.0, 1.0, 1.0) if randf() < 0.6 else Color(0.85, 0.95, 1.0)
+		var col := Color(1.0, 1.0, 1.0) if randf() < 0.5 else Color(0.75, 0.9, 1.0)
+		if randf() < 0.25:
+			col = Color(1.0, 0.75, 0.95)  # pink-tinted puff
 		StyleKit.apply_to_mesh(mi, col, {
 			"outline_width": 0.05,
-			"emission_strength": 0.2,
+			"emission_strength": 0.45,
 			"emission_color": col,
-			"base_glow": 0.15,
+			"base_glow": 0.25,
 		})
 	return root

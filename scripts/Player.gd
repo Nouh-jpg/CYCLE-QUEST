@@ -2,23 +2,37 @@ extends CharacterBody3D
 
 const LANE_WIDTH := 3.0
 const BASE_FORWARD_SPEED := 15.0
-const BOOST_SPEED := 25.0
-const LANE_SWITCH_SPEED := 18.0
+const MAX_FORWARD_SPEED := 28.0
+const SPEED_RAMP_PER_SEC := 0.32
+const SPEED_PER_SCORE := 0.028
+const BOOST_ADD := 8.0
+const BOOST_DURATION := 2.6
+const LANE_SWITCH_SPEED := 20.0
 const JUMP_FORCE := 9.5
 const GRAVITY := 24.0
-const SPEED_LINE_THRESHOLD := 20.0
+const SPEED_LINE_THRESHOLD := 17.0
 const VISUAL_SCALE := 0.9
-const IDLE_BOB_AMP := 0.045
-const IDLE_BOB_SPEED := 9.0
-const LEAN_MAX_DEG := 22.0
-const LEAN_LERP := 14.0
+const IDLE_BOB_AMP := 0.075
+const IDLE_BOB_SPEED := 11.0
+const LEAN_MAX_DEG := 28.0
+const LEAN_LERP := 16.0
 const WHEEL_RADIUS := 0.38
+const COYOTE_TIME := 0.08
+const JUMP_BUFFER := 0.08
+const BASE_FOV := 72.0
+const MAX_FOV := 84.0
+const COIN_BASE_POINTS := 10
+const NEAR_MISS_POINTS := 25
+const BOOST_POINTS := 50
+const COMBO_GAP := 1.35
 
 var target_lane := 0 # -1 Left, 0 Center, 1 Right
 var is_jumping := false
 var is_sliding := false
 var score := 0
 var current_speed := BASE_FORWARD_SPEED
+var distance_traveled := 0.0
+var combo := 0
 var _visuals_applied := false
 var _was_on_floor := true
 var _prev_lane := 0
@@ -26,6 +40,15 @@ var _squash_tween: Tween
 var _anim_time := 0.0
 var _lean_z := 0.0
 var _jump_stretch := 0.0
+var _run_time := 0.0
+var _boost_timer := 0.0
+var _coyote := 0.0
+var _jump_buf := 0.0
+var _combo_timer := 0.0
+var _shake_amp := 0.0
+var _cam_base_pos := Vector3(0.0, 4.5, 8.5)
+var _start_z := 0.0
+var _near_miss_cd := 0.0
 
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
@@ -39,6 +62,7 @@ var dust_particles: GPUParticles3D
 var sparkle_particles: GPUParticles3D
 
 func _ready() -> void:
+	_start_z = global_position.z
 	_apply_character_visuals()
 	_setup_particles()
 	_setup_camera()
@@ -47,9 +71,10 @@ func _setup_camera() -> void:
 	# Classic Genesis runner framing: centered behind, pulled back/up, wide FOV.
 	if camera == null:
 		return
-	camera.position = Vector3(0.0, 4.5, 8.5)
+	_cam_base_pos = Vector3(0.0, 4.5, 8.5)
+	camera.position = _cam_base_pos
 	camera.rotation_degrees = Vector3(-16.0, 0.0, 0.0)
-	camera.fov = 72.0
+	camera.fov = BASE_FOV
 	camera.current = true
 
 func _apply_character_visuals() -> void:
@@ -110,7 +135,7 @@ func _build_maya(root: Node3D, skin: Color, hair: Color, hair_dark: Color, bike:
 
 	# Crimson hair mass — chunky silhouette, not micro-detail
 	_add_mesh(root, _sphere(0.44), Vector3(0, 1.72, 0.02), hair, {
-		"outline_width": 0.06, "emission_strength": 0.85, "emission_color": hair, "base_glow": 0.25
+		"outline_width": 0.06, "emission_strength": 1.35, "emission_color": hair, "base_glow": 0.4
 	})
 	_add_mesh(root, _sphere(0.16), Vector3(-0.14, 1.68, -0.26), hair, {
 		"outline_width": 0.03, "emission_strength": 0.8, "emission_color": hair
@@ -126,7 +151,7 @@ func _build_maya(root: Node3D, skin: Color, hair: Color, hair_dark: Color, bike:
 	})
 	# Rear volume + twin tails
 	_add_mesh(root, _sphere(0.52), Vector3(0, 1.48, 0.4), hair, {
-		"outline_width": 0.06, "emission_strength": 1.0, "emission_color": hair, "base_glow": 0.3
+		"outline_width": 0.06, "emission_strength": 1.5, "emission_color": hair, "base_glow": 0.45
 	})
 	_add_mesh(root, _sphere(0.36), Vector3(0, 1.15, 0.52), hair_dark, {
 		"outline_width": 0.045, "emission_strength": 0.85, "emission_color": hair_dark
@@ -274,14 +299,14 @@ func _cylinder(radius: float, height: float) -> CylinderMesh:
 	return m
 
 func _setup_particles() -> void:
-	speed_particles = _make_particle_node("SpeedLines", Color(0.7, 0.95, 1.0, 0.7), 24, 0.35)
+	speed_particles = _make_particle_node("SpeedLines", Color(0.7, 0.95, 1.0, 0.7), 36, 0.32)
 	speed_particles.position = Vector3(0, 0.8, 1.2)
 	speed_particles.emitting = false
 	var speed_mat := ParticleProcessMaterial.new()
 	speed_mat.direction = Vector3(0, 0, 1)
 	speed_mat.spread = 12.0
-	speed_mat.initial_velocity_min = 4.0
-	speed_mat.initial_velocity_max = 10.0
+	speed_mat.initial_velocity_min = 6.0
+	speed_mat.initial_velocity_max = 14.0
 	speed_mat.gravity = Vector3.ZERO
 	speed_mat.scale_min = 0.05
 	speed_mat.scale_max = 0.12
@@ -348,33 +373,59 @@ func _physics_process(delta: float) -> void:
 	if GameManager.is_game_over:
 		return
 
+	_run_time += delta
+	_near_miss_cd = maxf(0.0, _near_miss_cd - delta)
+	_combo_timer = maxf(0.0, _combo_timer - delta)
+	if _combo_timer <= 0.0 and combo > 0:
+		combo = 0
+		_notify_combo()
+
+	# Speed ramp: smooth rise with time + score, boost spikes on top, hard cap
+	var ramp := BASE_FORWARD_SPEED + _run_time * SPEED_RAMP_PER_SEC + float(score) * SPEED_PER_SCORE
+	ramp = minf(ramp, MAX_FORWARD_SPEED)
+	if _boost_timer > 0.0:
+		_boost_timer -= delta
+		current_speed = minf(ramp + BOOST_ADD, MAX_FORWARD_SPEED + 2.0)
+	else:
+		current_speed = ramp
+
 	# Forward movement (world -Z)
 	velocity.z = -current_speed
+	distance_traveled = maxf(distance_traveled, _start_z - global_position.z)
 
 	# Snappy lane switching
 	var target_x := target_lane * LANE_WIDTH
 	velocity.x = (target_x - global_position.x) * LANE_SWITCH_SPEED
 
-	# Gravity / jump
+	# Gravity / jump with coyote + buffer
 	var on_floor := is_on_floor()
-	if not on_floor:
-		velocity.y -= GRAVITY * delta
-	else:
+	if on_floor:
+		_coyote = COYOTE_TIME
 		is_jumping = false
 		if velocity.y < 0.0:
 			velocity.y = 0.0
+	else:
+		_coyote = maxf(0.0, _coyote - delta)
+		velocity.y -= GRAVITY * delta
+
+	if Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("ui_up"):
+		_jump_buf = JUMP_BUFFER
+	else:
+		_jump_buf = maxf(0.0, _jump_buf - delta)
+
+	if _jump_buf > 0.0 and _coyote > 0.0 and not is_sliding:
+		velocity.y = JUMP_FORCE
+		is_jumping = true
+		_jump_buf = 0.0
+		_coyote = 0.0
+		_jump_stretch = 1.0
+		_play_squash(Vector3(0.78, 1.35, 0.78), 0.08)
 
 	# Land squash
 	if on_floor and not _was_on_floor:
 		_jump_stretch = 0.0
 		_play_squash(Vector3(1.3, 0.65, 1.3), 0.1)
 	_was_on_floor = on_floor
-
-	if (Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("ui_up")) and is_on_floor() and not is_sliding:
-		velocity.y = JUMP_FORCE
-		is_jumping = true
-		_jump_stretch = 1.0
-		_play_squash(Vector3(0.78, 1.35, 0.78), 0.08)
 
 	var lane_changed := false
 	if Input.is_action_just_pressed("ui_left"):
@@ -393,8 +444,32 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	_update_speed_feel(delta)
+
 	if speed_particles:
 		speed_particles.emitting = current_speed >= SPEED_LINE_THRESHOLD
+
+func _update_speed_feel(delta: float) -> void:
+	if camera == null:
+		return
+	# FOV punch scales with speed; shake decays
+	var t := clampf((current_speed - BASE_FORWARD_SPEED) / (MAX_FORWARD_SPEED - BASE_FORWARD_SPEED), 0.0, 1.0)
+	var want_fov := lerpf(BASE_FOV, MAX_FOV, t)
+	if _boost_timer > 0.0:
+		want_fov += 3.0
+	camera.fov = lerpf(camera.fov, want_fov, clampf(8.0 * delta, 0.0, 1.0))
+	_shake_amp = maxf(0.0, _shake_amp - delta * 9.0)
+	var shake := Vector3.ZERO
+	if _shake_amp > 0.01:
+		shake = Vector3(
+			randf_range(-1, 1) * _shake_amp,
+			randf_range(-1, 1) * _shake_amp * 0.6,
+			0.0
+		)
+	camera.position = _cam_base_pos + shake
+	var ui = get_tree().root.find_child("UI", true, false)
+	if ui and ui.has_method("update_speed"):
+		ui.update_speed(current_speed, MAX_FORWARD_SPEED)
 
 func _process(delta: float) -> void:
 	if visual_root == null or GameManager.is_game_over:
@@ -406,27 +481,26 @@ func _update_ride_anim(delta: float) -> void:
 	# Target lean toward destination lane
 	var target_x := float(target_lane) * LANE_WIDTH
 	var dx := target_x - global_position.x
-	var lean_target := clampf(-dx * 6.0, -LEAN_MAX_DEG, LEAN_MAX_DEG)
+	var lean_target := clampf(-dx * 7.5, -LEAN_MAX_DEG, LEAN_MAX_DEG)
 	if is_sliding:
 		lean_target *= 0.35
 	_lean_z = lerpf(_lean_z, lean_target, clampf(LEAN_LERP * delta, 0.0, 1.0))
 
-	# Idle bob + slight pitch (suppressed in air / slide)
+	# Idle bob + slight pitch (suppressed in air / slide) — stronger for readable motion
 	var bob := 0.0
 	var pitch := 0.0
 	if is_on_floor() and not is_sliding:
 		bob = sin(_anim_time * IDLE_BOB_SPEED) * IDLE_BOB_AMP
-		pitch = sin(_anim_time * IDLE_BOB_SPEED) * 3.5
+		pitch = sin(_anim_time * IDLE_BOB_SPEED) * 5.5
 	elif is_jumping or not is_on_floor():
-		# Hang: slight nose-up, decay stretch flag
-		pitch = -8.0
+		pitch = -10.0
 		_jump_stretch = maxf(0.0, _jump_stretch - delta * 2.5)
 
 	visual_root.position.y = bob
 	visual_root.rotation_degrees = Vector3(pitch, 0.0, _lean_z)
 
 	# Wheel spin ∝ speed (rad/s = v / r); local X while tire faces sideways
-	var spin_rad := (current_speed / WHEEL_RADIUS) * delta
+	var spin_rad := (current_speed / WHEEL_RADIUS) * delta * 1.15
 	for w in wheel_nodes:
 		if is_instance_valid(w):
 			w.rotate_x(spin_rad)
@@ -453,6 +527,9 @@ func _burst_sparkle() -> void:
 	sparkle_particles.restart()
 	sparkle_particles.emitting = true
 
+func add_shake(amount: float) -> void:
+	_shake_amp = maxf(_shake_amp, amount)
+
 func _start_slide() -> void:
 	is_sliding = true
 	if collision_shape:
@@ -475,18 +552,60 @@ func _start_slide() -> void:
 func collect_coin() -> void:
 	if GameManager.is_game_over:
 		return
-	score += 1
+	combo += 1
+	_combo_timer = COMBO_GAP
+	var mult := mini(combo, 8)
+	var pts := COIN_BASE_POINTS * mult
+	score += pts
 	_burst_sparkle()
+	_notify_score()
+	_notify_combo()
 	var ui = get_tree().root.find_child("UI", true, false)
-	if ui and ui.has_method("update_score"):
-		ui.update_score(score)
+	if ui and ui.has_method("popup_points"):
+		var label := "+%d" % pts
+		if combo >= 2:
+			label = "+%d  x%d" % [pts, mult]
+		ui.popup_points(label, Color(1.0, 0.92, 0.2))
+
+func register_near_miss() -> void:
+	if GameManager.is_game_over or _near_miss_cd > 0.0:
+		return
+	_near_miss_cd = 0.45
+	score += NEAR_MISS_POINTS
+	add_shake(0.22)
+	_notify_score()
+	var ui = get_tree().root.find_child("UI", true, false)
+	if ui and ui.has_method("popup_points"):
+		ui.popup_points("CLOSE! +%d" % NEAR_MISS_POINTS, Color(1.0, 0.45, 0.85))
+	if ui and ui.has_method("flash_near_miss"):
+		ui.flash_near_miss()
+
+func on_crash() -> void:
+	add_shake(0.55)
+	combo = 0
+	_combo_timer = 0.0
 
 func apply_boost() -> void:
 	if GameManager.is_game_over:
 		return
-	current_speed = BOOST_SPEED
+	_boost_timer = BOOST_DURATION
+	score += BOOST_POINTS
+	combo = max(combo, 1)
+	_combo_timer = COMBO_GAP
+	add_shake(0.18)
 	_play_squash(Vector3(0.7, 1.4, 0.7), 0.15)
 	_burst_dust()
-	await get_tree().create_timer(3.0).timeout
-	if not GameManager.is_game_over:
-		current_speed = BASE_FORWARD_SPEED
+	_notify_score()
+	var ui = get_tree().root.find_child("UI", true, false)
+	if ui and ui.has_method("popup_points"):
+		ui.popup_points("BOOST! +%d" % BOOST_POINTS, Color(0.35, 1.0, 0.55))
+
+func _notify_score() -> void:
+	var ui = get_tree().root.find_child("UI", true, false)
+	if ui and ui.has_method("update_score"):
+		ui.update_score(score)
+
+func _notify_combo() -> void:
+	var ui = get_tree().root.find_child("UI", true, false)
+	if ui and ui.has_method("update_combo"):
+		ui.update_combo(combo)

@@ -19,8 +19,8 @@ radius = 0.45
 height = 1.6
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_Anime"]
-sky_top_color = Color(0.15, 0.35, 0.95, 1)
-sky_horizon_color = Color(0.55, 0.85, 1, 1)
+sky_top_color = Color(0.2, 0.4, 1, 1)
+sky_horizon_color = Color(0.7, 0.9, 1, 1)
 sky_curve = 0.08
 ground_bottom_color = Color(0.2, 0.55, 0.25, 1)
 ground_horizon_color = Color(0.45, 0.75, 0.35, 1)
@@ -35,7 +35,7 @@ sky_material = SubResource("SkyMat_Anime")
 background_mode = 2
 sky = SubResource("Sky_Anime")
 ambient_light_source = 2
-ambient_light_color = Color(0.75, 0.9, 1, 1)
+ambient_light_color = Color(0.85, 0.92, 1, 1)
 ambient_light_energy = 0.95
 tonemap_mode = 3
 tonemap_exposure = 1.05
@@ -48,17 +48,17 @@ ssao_detail = 0.5
 ssao_horizon = 0.06
 ssao_sharpness = 0.85
 glow_enabled = true
-glow_intensity = 0.95
-glow_strength = 1.1
-glow_bloom = 0.35
+glow_intensity = 1.25
+glow_strength = 1.35
+glow_bloom = 0.5
 glow_hdr_threshold = 0.75
 glow_hdr_scale = 2.0
 glow_hdr_luminance_cap = 12.0
 glow_normalized = true
 adjustment_enabled = true
 adjustment_brightness = 1.05
-adjustment_contrast = 1.15
-adjustment_saturation = 1.55
+adjustment_contrast = 1.22
+adjustment_saturation = 1.75
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributes_Main"]
 
