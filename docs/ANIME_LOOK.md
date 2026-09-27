@@ -1,40 +1,39 @@
 # Cycle Quest — Anime / Cel-Shaded Look Reference
 
-Visual overhaul from greybox to vibrant cartoon anime (cel-shaded) style for Godot 4.3 Forward+.
+Visual overhaul from greybox to vibrant cartoon anime style for Godot 4.3–4.7 Forward+.
 
-## Shaders
+> **2026-09 hotfix:** Custom `light()` toon shaders that read `NORMAL`/`VIEW` can fail to
+> compile on some Godot 4.5–4.7 Forward+ builds (magenta/pink materials → “pink screen”).
+> `StyleKit` now builds **`StandardMaterial3D`** with vivid albedo + emission + inverted-hull
+> outline `next_pass`. The fragment-only `shaders/toon.gdshader` remains as an optional
+> reference but is **not** used at runtime.
 
-### Toon / cel (`res://shaders/toon.gdshader`)
+## Materials (runtime)
 
-Custom light-pass shader with hard shade bands, optional highlight band, fresnel rim, and emission.
+`StyleKit.make_toon()` / `apply_to_mesh()` return a `StandardMaterial3D`:
 
-Key uniforms:
+| Property | Role |
+|---|---|
+| `albedo_color` | Base flat / vibrant color from `PALETTE` |
+| `emission` + `emission_energy_multiplier` | Neon pop (coins, boosts, hair, bike accents) + mild `base_glow` so meshes never go black |
+| `roughness` / `metallic` | Soft non-metal look (defaults ~0.72 / 0.0) |
+| `next_pass` | Inverted-hull outline (`shaders/outline.gdshader`) when `outline_width > 0` |
 
-| Uniform | Role | Typical |
-|---|---|---|
-| `albedo` | Base flat color (`source_color` (Godot 4; formerly hint_source_color)) | palette color |
-| `shade_color` | Multiply tint in shadow band | deep purple `(0.35, 0.28, 0.55)` |
-| `shade_threshold` | N·L edge for shade band | `0.45` |
-| `shade_softness` | Band edge soft width | `0.04` |
-| `highlight_threshold` / `highlight_mix` | Second bright band | `0.85` / `0.25` |
-| `rim_amount` / `rim_threshold` / `rim_color` | View fresnel rim | `0.4` / `0.55` / cool white |
-| `emission_color` / `emission_strength` | Self-glow (coins, neon) | color / `0–2.5` |
+API-compatible opts still accepted (`rim_amount`, `shade_color`, `highlight_*`) but ignored;
+call sites do not need changes.
 
-Full source lives at `shaders/toon.gdshader`. Materials are built at runtime by `StyleKit.make_toon()` so every mesh gets consistent bands + outline.
+### Outline method
 
-### Outline method (chosen)
+**Inverted-hull via `next_pass`** — unshaded, `cull_front`, `VERTEX += NORMAL * outline_width`.
+Safe on Forward+ (no custom `light()`).
 
-**Inverted-hull outline via `next_pass`** on the toon `ShaderMaterial`.
+## Optional shader reference
 
-- Shader: `res://shaders/outline.gdshader`
-- Shared resource: `res://materials/outline.tres`
-- Technique: `cull_front` + expand `VERTEX += NORMAL * outline_width` in the vertex stage; draws only backfaces as a fat silhouette.
-- Applied by setting `ShaderMaterial.next_pass = outline_material` inside `StyleKit.make_toon()` when `outline_width > 0`.
-- Alternative considered (not used): duplicate mesh with a second MeshInstance3D. `next_pass` keeps one mesh, lower draw overhead for this mobile-bound runner.
-
-Outline defaults: color `(0.08, 0.04, 0.16)`, width `0.035` (tweak per mesh size).
+`shaders/toon.gdshader` is now **fragment-only / unshaded** (fake light_dir bands + rim).
+Do not reintroduce a custom `light()` path without verifying Forward+ on the target Godot version.
 
 ## WorldEnvironment (Main)
+
 
 Set on `scenes/Main.tscn` → `WorldEnvironment` / sub-resource `Environment_Main`:
 
@@ -42,9 +41,9 @@ Set on `scenes/Main.tscn` → `WorldEnvironment` / sub-resource `Environment_Mai
 |---|---|
 | Background | Sky (`background_mode = 2`) with `ProceduralSkyMaterial` |
 | Sky top | `(0.35, 0.45, 1.0)` |
-| Sky horizon | `(1.0, 0.55, 0.85)` |
-| Ground bottom / horizon | purple `(0.45, 0.2, 0.75)` / `(0.85, 0.45, 0.95)` |
-| Ambient | Custom color `(0.95, 0.75, 1.0)`, energy `0.95` |
+| Sky horizon | `(0.7, 0.65, 1.0)` lavender (was hot pink) |
+| Ground bottom / horizon | purple `(0.45, 0.2, 0.75)` / `(0.55, 0.4, 0.85)` |
+| Ambient | Custom color `(0.85, 0.8, 1.0)`, energy `0.95` |
 | Tonemap | **ACES** (`tonemap_mode = 3`), exposure `1.05` |
 | SSAO | **on** — radius `1.4`, intensity `1.6`, power `1.5`, detail `0.5`, horizon `0.06`, sharpness `0.85` |
 | Glow / bloom | **on** — intensity `1.35`, strength `1.1`, bloom `0.65`, HDR threshold `0.75`, HDR scale `2.0`, luminance cap `12`, normalized |

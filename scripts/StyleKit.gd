@@ -1,8 +1,10 @@
 class_name StyleKit
 extends RefCounted
-## Builds reusable toon + inverted-hull outline ShaderMaterials.
+## Builds reusable stylized materials + inverted-hull outline.
+## Uses StandardMaterial3D (never pink) instead of a custom light() toon shader.
+## Godot 4.5–4.7 Forward+ has had regressions where NORMAL/VIEW in light()
+## fail to compile → magenta/pink materials. Playability first.
 
-const TOON_SHADER := preload("res://shaders/toon.gdshader")
 const OUTLINE_SHADER := preload("res://shaders/outline.gdshader")
 
 ## Vibrant anime palette (no muddy greys/browns).
@@ -44,33 +46,36 @@ static func make_outline(width: float = 0.035, color: Color = PALETTE["outline"]
 	mat.set_shader_parameter("outline_width", width)
 	return mat
 
+## Build a vivid, always-valid material. opts keys (all optional):
+## outline_width, outline_color, emission_strength, emission_color,
+## metallic, roughness, base_glow, shade_color (ignored — kept for API compat),
+## rim_amount / highlight_* (ignored — kept for API compat).
 static func make_toon(
 	albedo: Color,
 	opts: Dictionary = {}
-) -> ShaderMaterial:
-	var mat := ShaderMaterial.new()
-	mat.shader = TOON_SHADER
-	mat.set_shader_parameter("albedo", albedo)
-	mat.set_shader_parameter("shade_color", opts.get("shade_color", Color(0.35, 0.28, 0.55)))
-	mat.set_shader_parameter("shade_threshold", opts.get("shade_threshold", 0.45))
-	mat.set_shader_parameter("shade_softness", opts.get("shade_softness", 0.04))
-	mat.set_shader_parameter("highlight_threshold", opts.get("highlight_threshold", 0.85))
-	mat.set_shader_parameter("highlight_softness", opts.get("highlight_softness", 0.05))
-	mat.set_shader_parameter("highlight_color", opts.get("highlight_color", Color(1, 1, 1)))
-	mat.set_shader_parameter("highlight_mix", opts.get("highlight_mix", 0.25))
-	mat.set_shader_parameter("rim_amount", opts.get("rim_amount", 0.4))
-	mat.set_shader_parameter("rim_threshold", opts.get("rim_threshold", 0.55))
-	mat.set_shader_parameter("rim_color", opts.get("rim_color", Color(0.9, 0.95, 1.0)))
-	mat.set_shader_parameter("emission_color", opts.get("emission_color", albedo))
-	mat.set_shader_parameter("emission_strength", opts.get("emission_strength", 0.0))
-	mat.set_shader_parameter("metallic", opts.get("metallic", 0.0))
-	mat.set_shader_parameter("roughness", opts.get("roughness", 0.85))
-	var outline_w: float = opts.get("outline_width", 0.035)
+) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = albedo
+	mat.roughness = float(opts.get("roughness", 0.72))
+	mat.metallic = float(opts.get("metallic", 0.0))
+	# Mild base glow so meshes pop against the sky and never read as void/black.
+	var base_glow := float(opts.get("base_glow", 0.14))
+	var em_str := float(opts.get("emission_strength", 0.0))
+	var em_col: Color = opts.get("emission_color", albedo)
+	if em_str > 0.0:
+		mat.emission_enabled = true
+		mat.emission = em_col
+		mat.emission_energy_multiplier = em_str + base_glow * 0.35
+	elif base_glow > 0.0:
+		mat.emission_enabled = true
+		mat.emission = albedo
+		mat.emission_energy_multiplier = base_glow
+	var outline_w: float = float(opts.get("outline_width", 0.035))
 	if outline_w > 0.0:
 		mat.next_pass = make_outline(outline_w, opts.get("outline_color", PALETTE["outline"]))
 	return mat
 
-static func apply_to_mesh(mesh_instance: MeshInstance3D, albedo: Color, opts: Dictionary = {}) -> ShaderMaterial:
+static func apply_to_mesh(mesh_instance: MeshInstance3D, albedo: Color, opts: Dictionary = {}) -> StandardMaterial3D:
 	var mat := make_toon(albedo, opts)
 	mesh_instance.material_override = mat
 	return mat

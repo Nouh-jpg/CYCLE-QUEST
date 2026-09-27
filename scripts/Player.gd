@@ -35,9 +35,14 @@ func _apply_character_visuals() -> void:
 		return
 	_visuals_applied = true
 
-	# Hide greybox capsule; build anime rider + bike under a Visual root for squash/stretch.
+	# Build anime rider + bike under Visual; hide greybox only after meshes exist.
 	if mesh_instance:
-		mesh_instance.visible = false
+		var fallback := StandardMaterial3D.new()
+		fallback.albedo_color = Color(1.0, 0.45, 0.85)
+		fallback.emission_enabled = true
+		fallback.emission = Color(1.0, 0.45, 0.85)
+		fallback.emission_energy_multiplier = 0.25
+		mesh_instance.material_override = fallback
 
 	visual_root = Node3D.new()
 	visual_root.name = "Visual"
@@ -107,6 +112,9 @@ func _apply_character_visuals() -> void:
 	_add_mesh(bike_root, _box(Vector3(0.15, 0.08, 1.1)), Vector3(0, 0.2, 0), StyleKit.PALETTE["neon"], {
 		"outline_width": 0.0, "emission_strength": 1.8, "emission_color": StyleKit.PALETTE["neon"], "rim_amount": 0.0
 	})
+
+	if mesh_instance:
+		mesh_instance.visible = false
 
 func _add_mesh(parent: Node3D, mesh: Mesh, pos: Vector3, color: Color, opts: Dictionary = {}) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
