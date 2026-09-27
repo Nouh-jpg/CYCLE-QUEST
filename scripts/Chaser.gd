@@ -5,11 +5,14 @@ extends CharacterBody3D
 ## frame. Stay in the band between rider and camera, offset to the rider's
 ## right, and small enough that the road and the billboard stay readable.
 const START_GAP := 4.35
-const MIN_GAP := 2.55
 const CATCH_GAP := 1.55
 const WARN_GAP := 4.35
-## Seconds of steady play to ease from START_GAP down to MIN_GAP.
-const CLOSE_SECONDS := 26.0
+## Seconds of clean riding to ease from START_GAP down toward PRESS_GAP.
+## A hit pulls tighter than that; a boost opens back to START_GAP.
+const CLOSE_SECONDS := 36.0
+const PRESS_GAP := 3.05
+const BOOST_PULL := 8.0
+const PURSUIT_ACCEL := 6.0
 const SIDE_FAR := 2.2
 const SIDE_NEAR := 1.15
 ## Meters kept between the camera and the chaser's nearest (+Z) point.
@@ -22,6 +25,8 @@ var _run_time := 0.0
 var _visual: Node3D
 var _anim_t := 0.0
 var _danger := 0.0 ## 0..1 for UI vignette
+## Tracks cruise speed, never the boost surge, so the gap can open.
+var _pursuit := 15.0
 
 func _ready() -> void:
 	player = get_tree().root.find_child("Player", true, false)
@@ -102,19 +107,45 @@ func _physics_process(delta: float) -> void:
 	_anim_t += delta
 
 	var player_speed := 15.0
+	var cruise := 15.0
+	var boosting := false
 	if "current_speed" in player:
 		player_speed = float(player.current_speed)
+	if "cruise_speed" in player:
+		cruise = float(player.cruise_speed)
+	if "is_boosting" in player:
+		boosting = bool(player.is_boosting)
 
-	# Ease toward the rider. Speed-up tightens the gap without a lunge
-	# that would shove the mesh into the camera.
-	var speed_factor := clampf((player_speed - 15.0) / 13.0, 0.0, 1.0)
-	var close_t := clampf(_run_time / CLOSE_SECONDS + speed_factor * 0.45, 0.0, 1.0)
-	var desired_gap := lerpf(START_GAP, MIN_GAP, close_t)
-
+	# Recomputed every frame from the live speed. Do not remember a
+	# boost-relative chase speed or the chaser lunges the moment the surge ends.
+	_pursuit = move_toward(_pursuit, cruise, PURSUIT_ACCEL * delta)
+	# Player physics runs first, so this body's gap is already inflated by one
+	# step of rider speed. Subtract that step or a boost looks like a safe lead
+	# and the chaser copies it instead of falling back.
 	var gap := global_position.z - player.global_position.z
-	var gap_err := gap - desired_gap
-	var rel := clampf(gap_err * 1.35, -1.1, 4.5)
-	velocity.z = -(player_speed + rel)
+	var rider := player as CharacterBody3D
+	if rider:
+		gap += rider.velocity.z * delta
+	var healthy_t := clampf(_run_time / CLOSE_SECONDS, 0.0, 1.0)
+	var desired := lerpf(START_GAP, PRESS_GAP, healthy_t)
+	var chase := player_speed
+	if boosting and gap < START_GAP - 0.08:
+		chase = maxf(player_speed - BOOST_PULL, 0.0)
+	elif boosting:
+		chase = player_speed
+	else:
+		var deficit := maxf(0.0, cruise - player_speed)
+		var squeeze := minf(1.45, deficit * 0.12)
+		if deficit > 2.0:
+			var extra := minf(0.3, maxf(0.0, (gap - desired) * 0.1))
+			chase = player_speed + squeeze + extra
+		else:
+			var gap_err := gap - desired
+			var rel := clampf(gap_err * 1.15, -1.4, 1.8)
+			chase = _pursuit + rel
+			if player_speed < cruise - 0.4:
+				chase = minf(chase, player_speed + squeeze + 0.35)
+	velocity.z = -chase
 	var side := lerpf(SIDE_FAR, SIDE_NEAR, _danger)
 	var desired_x := player.global_position.x + side
 	velocity.x = (desired_x - global_position.x) * 3.2
@@ -128,6 +159,9 @@ func _physics_process(delta: float) -> void:
 	var ui = get_tree().root.find_child("UI", true, false)
 	if ui and ui.has_method("set_danger_level"):
 		ui.set_danger_level(_danger)
+	var ga := get_node_or_null("/root/GameAudio")
+	if ga and ga.has_method("set_danger_energy"):
+		ga.set_danger_energy(_danger)
 
 	if gap <= CATCH_GAP:
 		_catch_player()

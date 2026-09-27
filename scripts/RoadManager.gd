@@ -53,8 +53,10 @@ func _spawn_pattern(seg_z: float) -> void:
 	# Readable, telegraphed patterns — not pure random soup.
 	if _ease_segments > 0:
 		_ease_segments -= 1
-		# Light coin snack during ease so the road never feels empty
-		if randf() < 0.55:
+		# A stumble is survivable if a boost is actually on the road.
+		if randf() < 0.32:
+			_pattern_boost(seg_z)
+		elif randf() < 0.55:
 			_pattern_coin_line(seg_z, randi_range(-1, 1), 3)
 		return
 
@@ -64,6 +66,7 @@ func _spawn_pattern(seg_z: float) -> void:
 		"coin_line",
 		"coin_arc",
 		"coins_then_block",
+		"boost_lane",
 		"boost_lane",
 		"overhead_bar",
 		"overhead_bar",

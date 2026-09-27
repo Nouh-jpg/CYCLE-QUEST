@@ -4,6 +4,7 @@ extends Node
 ## Missing files warn and are skipped so a run still plays.
 
 const MUSIC_PATH := "res://assets/audio/bgm_loop.wav"
+const DRIVE_PATH := "res://assets/audio/bgm_drive.wav"
 const SFX_PATHS := {
 	"jump": "res://assets/audio/sfx_jump.wav",
 	"lane": "res://assets/audio/sfx_lane.wav",
@@ -13,9 +14,12 @@ const SFX_PATHS := {
 }
 
 var _music: AudioStreamPlayer
+var _drive: AudioStreamPlayer
 var _sfx_players: Array[AudioStreamPlayer] = []
 var _sfx_cursor := 0
 var _streams: Dictionary = {}
+var _speed_energy := 0.0
+var _danger_energy := 0.0
 
 func _ready() -> void:
 	# Stay alive across the game-over pause so crash SFX can finish
@@ -23,13 +27,22 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_music = AudioStreamPlayer.new()
 	_music.name = "BGM"
-	_music.volume_db = -14.0
+	_music.volume_db = -12.0
 	# Explicit pausable: do not inherit this node's ALWAYS mode.
 	_music.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(_music)
 	var music := _load_wav(MUSIC_PATH, true)
 	if music:
 		_music.stream = music
+	# Same-length layer: hats and arp that rise with speed or chaser danger.
+	_drive = AudioStreamPlayer.new()
+	_drive.name = "BGMDrive"
+	_drive.volume_db = -32.0
+	_drive.process_mode = Node.PROCESS_MODE_PAUSABLE
+	add_child(_drive)
+	var drive := _load_wav(DRIVE_PATH, true)
+	if drive:
+		_drive.stream = drive
 	for i in 5:
 		var p := AudioStreamPlayer.new()
 		p.name = "SFX%d" % i
@@ -39,16 +52,35 @@ func _ready() -> void:
 		_sfx_players.append(p)
 
 func start_music() -> void:
-	if _music == null or _music.stream == null:
-		return
-	_music.stream_paused = false
-	# Restart from the top so a new run does not resume mid-loop.
-	_music.play(0.0)
+	_speed_energy = 0.0
+	_danger_energy = 0.0
+	_apply_drive()
+	# Restart both from the top so the layers stay locked and a new run
+	# does not resume mid-loop.
+	for player in [_music, _drive]:
+		if player == null or player.stream == null:
+			continue
+		player.stream_paused = false
+		player.play(0.0)
 
 func stop_music() -> void:
-	if _music == null:
+	for player in [_music, _drive]:
+		if player:
+			player.stop()
+
+func set_speed_energy(amount: float) -> void:
+	_speed_energy = clampf(amount, 0.0, 1.0)
+	_apply_drive()
+
+func set_danger_energy(amount: float) -> void:
+	_danger_energy = clampf(amount, 0.0, 1.0)
+	_apply_drive()
+
+func _apply_drive() -> void:
+	if _drive == null:
 		return
-	_music.stop()
+	var energy := maxf(_speed_energy, _danger_energy)
+	_drive.volume_db = lerpf(-32.0, -10.0, energy)
 
 func play_sfx(id: String) -> void:
 	if _sfx_players.is_empty():

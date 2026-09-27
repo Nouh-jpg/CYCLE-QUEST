@@ -29,7 +29,9 @@ func _run() -> void:
 		print("SETTLED player_y=%.3f on_floor=true" % player.global_position.y)
 
 	await _test_slide(main, player)
+	await _test_music()
 	await _test_chaser(player, chaser)
+	await _test_boost_and_hit(player, chaser)
 	if _failed:
 		print("SMOKE FAIL")
 		quit(1)
@@ -182,13 +184,82 @@ func _test_chaser(player: Node3D, chaser: CharacterBody3D) -> void:
 		min_gap, min_side, min_clear, max_area, max_w, max_h, saw_gate
 	])
 	if not saw_gate:
-		_fail("No cyan OverheadBar spawned on the road")
+		_fail("No magenta OverheadBar spawned on the road")
 	if min_side < 0.85:
 		_fail("Chaser drifted onto the rider (side %.2f)" % min_side)
 	if max_area > 0.12 or max_w > 0.45 or max_h > 0.5:
 		_fail("Chaser screen coverage too large area=%.3f w=%.3f h=%.3f" % [max_area, max_w, max_h])
 	if max_area <= 0.001:
 		_fail("Chaser never appeared on screen")
+
+func _test_music() -> void:
+	var ga := root.get_node_or_null("GameAudio")
+	if ga == null:
+		_fail("GameAudio autoload missing")
+		return
+	var bed_player := ga.get_node_or_null("BGM") as AudioStreamPlayer
+	var drive_player := ga.get_node_or_null("BGMDrive") as AudioStreamPlayer
+	if bed_player == null or drive_player == null:
+		_fail("Music players missing")
+		return
+	var bed := bed_player.stream as AudioStreamWAV
+	var drive := drive_player.stream as AudioStreamWAV
+	if bed == null or drive == null:
+		_fail("BGM streams did not load")
+		return
+	print("MUSIC bed_bytes=%d drive_bytes=%d" % [bed.data.size(), drive.data.size()])
+	if bed.data.size() < 700000 or drive.data.size() < 700000:
+		_fail("BGM is still the short beep loop")
+	if bed.data.size() != drive.data.size():
+		_fail("Music layers differ in length")
+	if not bed.stereo or not drive.stereo:
+		_fail("Music layers are not stereo")
+
+func _test_boost_and_hit(player: Node, chaser: Node3D) -> void:
+	if not player.has_method("apply_boost") or not player.has_method("on_obstacle_hit"):
+		_fail("Boost or hit handler missing")
+		return
+	var gm := root.get_node("GameManager")
+	var cruise := float(player.cruise_speed)
+	var gap0 := float(chaser.global_position.z - player.global_position.z)
+	player.apply_boost()
+	for _i in 50:
+		_silence_obstacles()
+		await physics_frame
+	if bool(gm.is_game_over):
+		_fail("Boost ended the run")
+		return
+	var boosted := float(player.current_speed)
+	var gap1 := float(chaser.global_position.z - player.global_position.z)
+	print("BOOST speed=%.1f cruise=%.1f gap %.2f -> %.2f" % [boosted, cruise, gap0, gap1])
+	if boosted < cruise + 10.0:
+		_fail("Boost did not surge speed (%.1f vs cruise %.1f)" % [boosted, cruise])
+	if gap1 < gap0 + 0.35 and gap1 < 4.15:
+		_fail("Boost did not open the chaser gap (%.2f -> %.2f)" % [gap0, gap1])
+	player.set("_boost_timer", 0.0)
+	var before := float(player.current_speed)
+	player.on_obstacle_hit()
+	for _i in 8:
+		_silence_obstacles()
+		await physics_frame
+	if bool(gm.is_game_over):
+		_fail("Obstacle hit ended the run")
+		return
+	var slowed := float(player.current_speed)
+	print("HIT speed %.1f -> %.1f penalty=%.1f" % [before, slowed, float(player._speed_penalty)])
+	if slowed > before - 8.0:
+		_fail("Hit did not slow the player (%.1f -> %.1f)" % [before, slowed])
+	var gap2 := float(chaser.global_position.z - player.global_position.z)
+	for _i in 30:
+		_silence_obstacles()
+		await physics_frame
+	if bool(gm.is_game_over):
+		_fail("One stumble from a safe gap should not be a catch")
+		return
+	var gap3 := float(chaser.global_position.z - player.global_position.z)
+	print("HIT gap %.2f -> %.2f" % [gap2, gap3])
+	if gap3 > gap2 - 0.12:
+		_fail("Chaser did not close during the slowdown (%.2f -> %.2f)" % [gap2, gap3])
 
 func _screen_span(cam: Camera3D, chaser: Node3D) -> Vector3:
 	var visual := chaser.get_node_or_null("Visual")

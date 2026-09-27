@@ -188,8 +188,6 @@ func _on_body_entered(body: Node3D) -> void:
 	if GameManager.is_game_over:
 		return
 	if body.is_in_group("player") or body.name == "Player":
-		if body.has_method("on_crash"):
-			body.on_crash()
-		var ui = get_tree().root.find_child("UI", true, false)
-		if ui and ui.has_method("show_game_over"):
-			ui.show_game_over()
+		# A hit stumbles the rider. Only the chaser closing the gap ends the run.
+		if body.has_method("on_obstacle_hit"):
+			body.on_obstacle_hit()
