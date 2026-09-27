@@ -26,8 +26,13 @@ const NEAR_MISS_POINTS := 25
 const BOOST_POINTS := 50
 const COMBO_GAP := 1.35
 const SPRITE_TARGET_HEIGHT := 3.0
-const MAYA_SPRITE_PATH := "res://assets/characters/maya_rider.png"
-const JAX_SPRITE_PATH := "res://assets/characters/jax_on_bike.png"
+const MAYA_SPRITE_PATH := "res://assets/characters/maya_rider_rear.png"
+const JAX_SPRITE_PATH := "res://assets/characters/jax_rider_rear.png"
+# Wheel centers as fractions of the rear card (x from the left, y from the top).
+const MAYA_REAR_WHEEL := Vector2(0.50, 0.88)
+const MAYA_FRONT_WHEEL := Vector2(0.49, 0.64)
+const JAX_REAR_WHEEL := Vector2(0.48, 0.90)
+const JAX_FRONT_WHEEL := Vector2(0.52, 0.62)
 
 var target_lane := 0 # -1 Left, 0 Center, 1 Right
 var is_jumping := false
@@ -97,6 +102,7 @@ func _apply_character_visuals() -> void:
 
 	bike_root = null
 	wheel_nodes.clear()
+	_rider_cards.clear()
 
 	var is_maya := GameManager.selected_character == "Maya"
 	if is_maya:
@@ -108,6 +114,7 @@ func _build_maya(root: Node3D) -> void:
 	var spr := _make_rider_sprite(MAYA_SPRITE_PATH)
 	if spr:
 		root.add_child(spr)
+		_build_rider_wheels(root, spr, MAYA_REAR_WHEEL, MAYA_FRONT_WHEEL, StyleKit.PALETTE["maya_bike_accent"])
 	else:
 		_build_maya_fallback(root)
 
@@ -115,6 +122,7 @@ func _build_jax(root: Node3D) -> void:
 	var spr := _make_rider_sprite(JAX_SPRITE_PATH)
 	if spr:
 		root.add_child(spr)
+		_build_rider_wheels(root, spr, JAX_REAR_WHEEL, JAX_FRONT_WHEEL, StyleKit.PALETTE["jax_bike_accent"])
 	else:
 		# Layer bike + rider if composite missing
 		var bike_spr := _make_rider_sprite("res://assets/characters/bike_red.png", 1.6)
@@ -195,6 +203,63 @@ func _face_riders_to_camera() -> void:
 		if card.global_position.is_equal_approx(cam_pos):
 			continue
 		card.look_at(cam_pos, Vector3.UP, true)
+
+func _build_rider_wheels(root: Node3D, card: MeshInstance3D, rear_uv: Vector2, front_uv: Vector2, accent: Color) -> void:
+	var quad := card.mesh as QuadMesh
+	if quad == null:
+		return
+	var size := quad.size
+	# Rear ring is closer to the chase camera; the front ring is smaller and higher on the bike.
+	# Parent is visual_root (not the card) so bob/lean still move the wheels while look_at owns the card.
+	_add_spin_wheel(root, _wheel_spot(size, rear_uv, 0.22), size.y * 0.125, accent)
+	_add_spin_wheel(root, _wheel_spot(size, front_uv, 0.08), size.y * 0.078, accent)
+
+func _wheel_spot(card_size: Vector2, uv: Vector2, z_bias: float) -> Vector3:
+	# Card bottom sits at y=0. uv.y is measured from the top of the drawing.
+	return Vector3((uv.x - 0.5) * card_size.x, (1.0 - uv.y) * card_size.y, z_bias)
+
+func _add_spin_wheel(parent: Node3D, pos: Vector3, radius: float, accent: Color) -> void:
+	var hub := Node3D.new()
+	hub.name = "Wheel"
+	hub.position = pos
+	# Local +X is the axle, aimed down the road. rotate_x in _update_ride_anim
+	# then turns the ring in the chase-camera view.
+	hub.rotation_degrees.y = 90.0
+	parent.add_child(hub)
+
+	var ring := MeshInstance3D.new()
+	ring.name = "Ring"
+	var torus := TorusMesh.new()
+	torus.inner_radius = radius * 0.66
+	torus.outer_radius = radius
+	torus.rings = 8
+	torus.ring_segments = 22
+	ring.mesh = torus
+	ring.rotation_degrees.z = 90.0
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	hub.add_child(ring)
+	StyleKit.apply_to_mesh(ring, Color(0.08, 0.08, 0.1), {
+		"outline_width": 0.012,
+		"emission_strength": 0.12,
+		"emission_color": Color(0.35, 0.35, 0.4),
+	})
+
+	var spoke := MeshInstance3D.new()
+	spoke.name = "Spoke"
+	var bar := BoxMesh.new()
+	bar.size = Vector3(radius * 0.2, radius * 1.55, radius * 0.16)
+	spoke.mesh = bar
+	# Negative local X faces the chase camera (axle points down the road).
+	spoke.position = Vector3(-radius * 0.12, 0.0, 0.0)
+	spoke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	hub.add_child(spoke)
+	StyleKit.apply_to_mesh(spoke, accent, {
+		"outline_width": 0.0,
+		"emission_strength": 0.9,
+		"emission_color": accent,
+	})
+
+	wheel_nodes.append(hub)
 
 func _build_maya_fallback(root: Node3D) -> void:
 	var skin: Color = StyleKit.PALETTE["maya_skin"]
@@ -374,6 +439,7 @@ func _physics_process(delta: float) -> void:
 		_coyote = 0.0
 		_jump_stretch = 1.0
 		_play_squash(Vector3(0.78, 1.35, 0.78), 0.08)
+		_sfx("jump")
 
 	# Land squash
 	if on_floor and not _was_on_floor:
@@ -391,6 +457,7 @@ func _physics_process(delta: float) -> void:
 
 	if lane_changed and target_lane != _prev_lane:
 		_burst_dust()
+		_sfx("lane")
 		_prev_lane = target_lane
 
 	if Input.is_action_just_pressed("ui_down") and is_on_floor() and not is_sliding:
@@ -455,7 +522,8 @@ func _update_ride_anim(delta: float) -> void:
 	visual_root.position.y = bob
 	visual_root.rotation_degrees = Vector3(pitch, 0.0, _lean_z)
 
-	# Wheel spin ∝ speed (rad/s = v / r); local X while tire faces sideways
+	# Wheel spin ∝ speed (rad/s = v / r). Hubs are yawed so local X is the axle
+	# and the ring turns in view of the chase camera.
 	var spin_rad := (current_speed / WHEEL_RADIUS) * delta * 1.15
 	for w in wheel_nodes:
 		if is_instance_valid(w):
@@ -514,6 +582,7 @@ func collect_coin() -> void:
 	var pts := COIN_BASE_POINTS * mult
 	score += pts
 	_burst_sparkle()
+	_sfx("coin")
 	_notify_score()
 	_notify_combo()
 	var ui = get_tree().root.find_child("UI", true, false)
@@ -545,6 +614,7 @@ func apply_boost() -> void:
 	if GameManager.is_game_over:
 		return
 	_boost_timer = BOOST_DURATION
+	_sfx("boost")
 	score += BOOST_POINTS
 	combo = max(combo, 1)
 	_combo_timer = COMBO_GAP
@@ -555,6 +625,11 @@ func apply_boost() -> void:
 	var ui = get_tree().root.find_child("UI", true, false)
 	if ui and ui.has_method("popup_points"):
 		ui.popup_points("BOOST! +%d" % BOOST_POINTS, Color(0.35, 1.0, 0.55))
+
+func _sfx(id: String) -> void:
+	var ga := get_node_or_null("/root/GameAudio")
+	if ga and ga.has_method("play_sfx"):
+		ga.play_sfx(id)
 
 func _notify_score() -> void:
 	var ui = get_tree().root.find_child("UI", true, false)
