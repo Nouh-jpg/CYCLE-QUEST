@@ -129,28 +129,43 @@ func _build_jax(root: Node3D) -> void:
 		if bike_spr == null and rider_spr == null:
 			_build_jax_fallback(root)
 
-func _make_rider_sprite(path: String, target_height: float = SPRITE_TARGET_HEIGHT) -> Sprite3D:
+func _make_rider_sprite(path: String, target_height: float = SPRITE_TARGET_HEIGHT) -> MeshInstance3D:
 	if not ResourceLoader.exists(path):
 		push_warning("Missing rider texture: %s" % path)
 		return null
 	var tex: Texture2D = load(path) as Texture2D
-	if tex == null:
+	# A 0/1 px texture means the import failed. Don't build a paper-thin card from it.
+	if tex == null or tex.get_width() < 2 or tex.get_height() < 2:
 		push_warning("Failed to load rider texture: %s" % path)
 		return null
-	var spr := Sprite3D.new()
-	spr.name = "RiderSprite"
-	spr.texture = tex
-	spr.centered = true
-	spr.pixel_size = target_height / float(maxi(tex.get_height(), 1))
-	spr.position.y = target_height * 0.5
-	spr.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	spr.transparent = true
-	spr.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
-	spr.double_sided = true
-	spr.shaded = false
-	spr.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	spr.render_priority = 1
-	return spr
+	# Chase camera is a child on local +Z, looking down -Z. A quad in the XY plane
+	# (normal +Z) shows its face to that camera. Sprite3D Y-billboard rebuilds
+	# that facing in the material shader, which turns the card edge-on (a thin
+	# stick) on some Windows drivers, and it also throws away visual_root lean/pitch.
+	var aspect := float(tex.get_width()) / float(tex.get_height())
+	var quad := QuadMesh.new()
+	quad.orientation = QuadMesh.FACE_Z
+	quad.size = Vector2(target_height * aspect, target_height)
+	var mi := MeshInstance3D.new()
+	mi.name = "RiderSprite"
+	mi.mesh = quad
+	mi.position = Vector3(0.0, target_height * 0.5, 0.0)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = tex
+	mat.albedo_color = Color.WHITE
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+	# Base-level sampling only. A mipmapped 3D sampler on these PNGs (sizes not
+	# multiples of 4, previously set to recompress to VRAM in 3D) can streak
+	# the card into a line. Linear filtering stays on the full-resolution texels.
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	mat.texture_repeat = false
+	mat.render_priority = 1
+	mi.material_override = mat
+	return mi
 
 func _build_maya_fallback(root: Node3D) -> void:
 	var skin: Color = StyleKit.PALETTE["maya_skin"]
