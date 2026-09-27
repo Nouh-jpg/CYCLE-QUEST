@@ -26,8 +26,13 @@ const NEAR_MISS_POINTS := 25
 const BOOST_POINTS := 50
 const COMBO_GAP := 1.35
 const SPRITE_TARGET_HEIGHT := 3.0
-const MAYA_SPRITE_PATH := "res://assets/characters/maya_rider.png"
-const JAX_SPRITE_PATH := "res://assets/characters/jax_on_bike.png"
+const MAYA_SPRITE_PATH := "res://assets/characters/maya_rider_rear.png"
+const JAX_SPRITE_PATH := "res://assets/characters/jax_rider_rear.png"
+# Wheel centers as fractions of the rear card (x from the left, y from the top).
+const MAYA_REAR_WHEEL := Vector2(0.40, 0.91)
+const MAYA_FRONT_WHEEL := Vector2(0.42, 0.86)
+const JAX_REAR_WHEEL := Vector2(0.42, 0.90)
+const JAX_FRONT_WHEEL := Vector2(0.45, 0.84)
 
 var target_lane := 0 # -1 Left, 0 Center, 1 Right
 var is_jumping := false
@@ -97,6 +102,7 @@ func _apply_character_visuals() -> void:
 
 	bike_root = null
 	wheel_nodes.clear()
+	_rider_cards.clear()
 
 	var is_maya := GameManager.selected_character == "Maya"
 	if is_maya:
@@ -108,6 +114,7 @@ func _build_maya(root: Node3D) -> void:
 	var spr := _make_rider_sprite(MAYA_SPRITE_PATH)
 	if spr:
 		root.add_child(spr)
+		_build_rider_wheels(root, spr, MAYA_REAR_WHEEL, MAYA_FRONT_WHEEL, StyleKit.PALETTE["maya_bike_accent"])
 	else:
 		_build_maya_fallback(root)
 
@@ -115,6 +122,7 @@ func _build_jax(root: Node3D) -> void:
 	var spr := _make_rider_sprite(JAX_SPRITE_PATH)
 	if spr:
 		root.add_child(spr)
+		_build_rider_wheels(root, spr, JAX_REAR_WHEEL, JAX_FRONT_WHEEL, StyleKit.PALETTE["jax_bike_accent"])
 	else:
 		# Layer bike + rider if composite missing
 		var bike_spr := _make_rider_sprite("res://assets/characters/bike_red.png", 1.6)
@@ -141,6 +149,9 @@ func _load_rider_texture(path: String) -> Texture2D:
 		var img := Image.new()
 		var err := img.load_png_from_buffer(bytes)
 		if err == OK and img.get_width() >= 2 and img.get_height() >= 2:
+			# Corrected rear PNGs are valid RGBA, but the studio plate is fully
+			# opaque gray. Punch that out and crop so the 3 m card is the rider.
+			img = _strip_studio_plate(img)
 			if img.has_mipmaps():
 				img.clear_mipmaps()
 			return ImageTexture.create_from_image(img)
@@ -150,6 +161,74 @@ func _load_rider_texture(path: String) -> Texture2D:
 			return imported
 	push_warning("Missing rider texture: %s" % path)
 	return null
+
+func _is_studio_plate_byte(r: int, g: int, b: int, a: int) -> bool:
+	if a < 250:
+		return false
+	var mx := maxi(r, maxi(g, b))
+	var mn := mini(r, mini(g, b))
+	return mx >= 176 and (mx - mn) <= 36
+
+func _seed_plate(data: PackedByteArray, seen: PackedByteArray, qx: PackedInt32Array, qy: PackedInt32Array, cursor: Array, w: int, x: int, y: int) -> void:
+	var idx := y * w + x
+	if seen[idx] != 0:
+		return
+	var i := idx * 4
+	if not _is_studio_plate_byte(int(data[i]), int(data[i + 1]), int(data[i + 2]), int(data[i + 3])):
+		return
+	seen[idx] = 1
+	var n: int = int(cursor[0])
+	qx[n] = x
+	qy[n] = y
+	cursor[0] = n + 1
+
+func _strip_studio_plate(img: Image) -> Image:
+	var w := img.get_width()
+	var h := img.get_height()
+	var corner := img.get_pixel(0, 0)
+	if corner.a < 0.98:
+		return img
+	if not _is_studio_plate_byte(int(corner.r * 255.0), int(corner.g * 255.0), int(corner.b * 255.0), int(corner.a * 255.0)):
+		return img
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	var data := img.get_data()
+	var seen := PackedByteArray()
+	seen.resize(w * h)
+	var qx := PackedInt32Array()
+	var qy := PackedInt32Array()
+	qx.resize(w * h)
+	qy.resize(w * h)
+	var cursor := [0]
+	for x in w:
+		_seed_plate(data, seen, qx, qy, cursor, w, x, 0)
+		_seed_plate(data, seen, qx, qy, cursor, w, x, h - 1)
+	for y in h:
+		_seed_plate(data, seen, qx, qy, cursor, w, 0, y)
+		_seed_plate(data, seen, qx, qy, cursor, w, w - 1, y)
+	var qh := 0
+	var qt: int = int(cursor[0])
+	while qh < qt:
+		var x: int = qx[qh]
+		var y: int = qy[qh]
+		qh += 1
+		var i := (y * w + x) * 4
+		data[i + 3] = 0
+		if x > 0:
+			_seed_plate(data, seen, qx, qy, cursor, w, x - 1, y)
+		if x + 1 < w:
+			_seed_plate(data, seen, qx, qy, cursor, w, x + 1, y)
+		if y > 0:
+			_seed_plate(data, seen, qx, qy, cursor, w, x, y - 1)
+		if y + 1 < h:
+			_seed_plate(data, seen, qx, qy, cursor, w, x, y + 1)
+		qt = int(cursor[0])
+	var out := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	out.set_data(w, h, false, Image.FORMAT_RGBA8, data)
+	var used := out.get_used_rect()
+	if used.size.x >= 2 and used.size.y >= 2 and (used.size.x < w or used.size.y < h):
+		out = out.get_region(used)
+	return out
 
 func _make_rider_sprite(path: String, target_height: float = SPRITE_TARGET_HEIGHT) -> MeshInstance3D:
 	var tex := _load_rider_texture(path)
@@ -195,6 +274,62 @@ func _face_riders_to_camera() -> void:
 		if card.global_position.is_equal_approx(cam_pos):
 			continue
 		card.look_at(cam_pos, Vector3.UP, true)
+
+func _build_rider_wheels(root: Node3D, card: MeshInstance3D, rear_uv: Vector2, front_uv: Vector2, accent: Color) -> void:
+	var quad := card.mesh as QuadMesh
+	if quad == null:
+		return
+	var size := quad.size
+	# Rear ring is closer to the chase camera; the front ring is smaller and higher on the bike.
+	# Parent is visual_root (not the card) so bob/lean still move the wheels while look_at owns the card.
+	_add_spin_wheel(root, _wheel_spot(size, rear_uv, 0.1), size.y * 0.12, accent)
+	_add_spin_wheel(root, _wheel_spot(size, front_uv, 0.05), size.y * 0.085, accent)
+
+func _wheel_spot(card_size: Vector2, uv: Vector2, z_bias: float) -> Vector3:
+	# Card bottom sits at y=0. uv.y is measured from the top of the drawing.
+	return Vector3((uv.x - 0.5) * card_size.x, (1.0 - uv.y) * card_size.y, z_bias)
+
+func _add_spin_wheel(parent: Node3D, pos: Vector3, radius: float, accent: Color) -> void:
+	var hub := Node3D.new()
+	hub.name = "Wheel"
+	hub.position = pos
+	# Identity orientation: local Z points at the chase camera. _update_ride_anim
+	# spins with rotate_z so the ring turns in view instead of edge-on.
+	parent.add_child(hub)
+
+	var ring := MeshInstance3D.new()
+	ring.name = "Ring"
+	var torus := TorusMesh.new()
+	torus.inner_radius = radius * 0.62
+	torus.outer_radius = radius
+	torus.rings = 8
+	torus.ring_segments = 24
+	ring.mesh = torus
+	# TorusMesh lies in XZ (axis Y). Pitch it into the XY plane so it faces the camera.
+	ring.rotation_degrees.x = 90.0
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	hub.add_child(ring)
+	StyleKit.apply_to_mesh(ring, Color(0.08, 0.08, 0.1), {
+		"outline_width": 0.012,
+		"emission_strength": 0.15,
+		"emission_color": Color(0.45, 0.45, 0.5),
+	})
+
+	var spoke := MeshInstance3D.new()
+	spoke.name = "Spoke"
+	var bar := BoxMesh.new()
+	bar.size = Vector3(radius * 0.22, radius * 1.75, radius * 0.18)
+	spoke.mesh = bar
+	spoke.position = Vector3(0.0, 0.0, radius * 0.08)
+	spoke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	hub.add_child(spoke)
+	StyleKit.apply_to_mesh(spoke, accent, {
+		"outline_width": 0.0,
+		"emission_strength": 0.95,
+		"emission_color": accent,
+	})
+
+	wheel_nodes.append(hub)
 
 func _build_maya_fallback(root: Node3D) -> void:
 	var skin: Color = StyleKit.PALETTE["maya_skin"]
@@ -374,6 +509,7 @@ func _physics_process(delta: float) -> void:
 		_coyote = 0.0
 		_jump_stretch = 1.0
 		_play_squash(Vector3(0.78, 1.35, 0.78), 0.08)
+		_sfx("jump")
 
 	# Land squash
 	if on_floor and not _was_on_floor:
@@ -391,6 +527,7 @@ func _physics_process(delta: float) -> void:
 
 	if lane_changed and target_lane != _prev_lane:
 		_burst_dust()
+		_sfx("lane")
 		_prev_lane = target_lane
 
 	if Input.is_action_just_pressed("ui_down") and is_on_floor() and not is_sliding:
@@ -455,11 +592,13 @@ func _update_ride_anim(delta: float) -> void:
 	visual_root.position.y = bob
 	visual_root.rotation_degrees = Vector3(pitch, 0.0, _lean_z)
 
-	# Wheel spin ∝ speed (rad/s = v / r); local X while tire faces sideways
+	# Wheel spin ∝ speed (rad/s = v / r). From the chase camera the axle is local Z,
+	# so rotate_z turns the ring in view. (rotate_x is the sideways axle and
+	# leaves these rear-view discs edge-on.)
 	var spin_rad := (current_speed / WHEEL_RADIUS) * delta * 1.15
 	for w in wheel_nodes:
 		if is_instance_valid(w):
-			w.rotate_x(spin_rad)
+			w.rotate_z(spin_rad)
 
 func _play_squash(scale_to: Vector3, duration: float) -> void:
 	if visual_root == null:
@@ -514,6 +653,7 @@ func collect_coin() -> void:
 	var pts := COIN_BASE_POINTS * mult
 	score += pts
 	_burst_sparkle()
+	_sfx("coin")
 	_notify_score()
 	_notify_combo()
 	var ui = get_tree().root.find_child("UI", true, false)
@@ -545,6 +685,7 @@ func apply_boost() -> void:
 	if GameManager.is_game_over:
 		return
 	_boost_timer = BOOST_DURATION
+	_sfx("boost")
 	score += BOOST_POINTS
 	combo = max(combo, 1)
 	_combo_timer = COMBO_GAP
@@ -555,6 +696,11 @@ func apply_boost() -> void:
 	var ui = get_tree().root.find_child("UI", true, false)
 	if ui and ui.has_method("popup_points"):
 		ui.popup_points("BOOST! +%d" % BOOST_POINTS, Color(0.35, 1.0, 0.55))
+
+func _sfx(id: String) -> void:
+	var ga := get_node_or_null("/root/GameAudio")
+	if ga and ga.has_method("play_sfx"):
+		ga.play_sfx(id)
 
 func _notify_score() -> void:
 	var ui = get_tree().root.find_child("UI", true, false)

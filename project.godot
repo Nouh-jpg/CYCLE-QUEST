@@ -18,6 +18,7 @@ config/features=PackedStringArray("4.3", "Forward+")
 
 GameManager="*res://scripts/GameManager.gd"
 StyleKit="*res://scripts/StyleKit.gd"
+GameAudio="*res://scripts/GameAudio.gd"
 
 [display]
 

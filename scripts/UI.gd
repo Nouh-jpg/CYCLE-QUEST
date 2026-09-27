@@ -27,6 +27,9 @@ func _ready() -> void:
 	update_score(0)
 	update_combo(0)
 	update_speed(15.0, 28.0)
+	var ga := get_node_or_null("/root/GameAudio")
+	if ga and ga.has_method("start_music"):
+		ga.start_music()
 
 func _build_extra_hud() -> void:
 	# Combo
@@ -206,6 +209,12 @@ func show_game_over() -> void:
 		if "score" in player:
 			sc = int(player.score)
 	GameManager.record_run(sc, dist)
+	var ga := get_node_or_null("/root/GameAudio")
+	if ga:
+		if ga.has_method("play_sfx"):
+			ga.play_sfx("crash")
+		if ga.has_method("stop_music"):
+			ga.stop_music()
 	if stats_label:
 		stats_label.text = "Distance: %dm\nScore: %d\nBest: %d" % [
 			int(round(dist)), sc, GameManager.best_score
