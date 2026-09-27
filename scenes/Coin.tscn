@@ -1,0 +1,21 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Coin.gd" id="1_script"]
+
+[node name="Coin" type="Area3D"]
+script = ExtResource("1_script")
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("CylinderMesh_1")
+
+[sub_resource name="CylinderMesh_1" type="CylinderMesh"]
+top_radius = 0.5
+bottom_radius = 0.5
+height = 0.2
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CylinderShape3D_1")
+
+[sub_resource name="CylinderShape3D_1" type="CylinderShape3D"]
+radius = 0.5
+height = 0.2

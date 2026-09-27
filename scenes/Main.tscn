@@ -1,0 +1,25 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/Player.gd" id="1_player"]
+[ext_resource type="Script" path="res://scripts/RoadManager.gd" id="2_road_manager"]
+[ext_resource type="Script" path="res://scripts/Chaser.gd" id="3_chaser"]
+[ext_resource type="PackedScene" path="res://scenes/UI.tscn" id="4_ui"]
+
+[node name="Main" type="Node3D"]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707, 0.707, 0, -0.707, 0.707, 0, 10, 0)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="Player" type="CharacterBody3D" parent="."]
+script = ExtResource("1_player")
+
+[node name="Chaser" type="CharacterBody3D" parent="."]
+script = ExtResource("3_chaser")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15)
+
+[node name="RoadManager" type="Node3D" parent="."]
+script = ExtResource("2_road_manager")
+
+[node name="UI" parent="." instance=ExtResource("4_ui")]

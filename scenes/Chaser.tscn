@@ -1,0 +1,18 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Chaser.gd" id="1_script"]
+
+[node name="Chaser" type="CharacterBody3D"]
+script = ExtResource("1_script")
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_1")
+
+[sub_resource name="BoxMesh_1" type="BoxMesh"]
+size = Vector3(3, 4, 3)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_1")
+
+[sub_resource name="BoxShape3D_1" type="BoxShape3D"]
+size = Vector3(3, 4, 3)

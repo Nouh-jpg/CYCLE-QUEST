@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/RoadSegment.gd" id="1_script"]
+
+[node name="RoadSegment" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_1")
+
+[sub_resource name="BoxMesh_1" type="BoxMesh"]
+size = Vector3(10, 0.2, 20)
