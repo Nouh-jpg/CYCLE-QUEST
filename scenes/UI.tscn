@@ -32,7 +32,7 @@ offset_left = 24.0
 offset_top = 600.0
 offset_right = 600.0
 offset_bottom = 640.0
-text = "← / →  SWITCH LANES     SPACE  JUMP     ↓  SLIDE"
+text = "← → LANES    SPACE JUMP    ↓ SLIDE UNDER CYAN GATE"
 
 [node name="TouchControls" parent="." instance=ExtResource("2_touch")]
 

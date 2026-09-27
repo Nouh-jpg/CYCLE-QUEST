@@ -18,6 +18,7 @@ var active_props: Array[Node3D] = []
 ## Soft telegraph: skip hard patterns for a few segments after a dense one.
 var _ease_segments := 0
 var _pattern_index := 0
+var _overhead_introduced := false
 
 func _ready() -> void:
 	player = get_tree().root.find_child("Player", true, false)
@@ -64,13 +65,18 @@ func _spawn_pattern(seg_z: float) -> void:
 		"coin_arc",
 		"coins_then_block",
 		"boost_lane",
+		"overhead_bar",
 		"empty",
 	]
 	# Weight toward readable hazards after warm-up
 	_pattern_index += 1
 	var pick: String = patterns[randi() % patterns.size()]
-	if _pattern_index < 4 and pick in ["two_gate", "coins_then_block"]:
+	if _pattern_index < 4 and pick in ["two_gate", "coins_then_block", "overhead_bar"]:
 		pick = "coin_line"
+	# Teach the duck once the opening stretch is over, then keep it in the mix.
+	if not _overhead_introduced and _pattern_index >= 4:
+		pick = "overhead_bar"
+		_overhead_introduced = true
 
 	match pick:
 		"single_block":
@@ -78,6 +84,9 @@ func _spawn_pattern(seg_z: float) -> void:
 			_ease_segments = 1
 		"two_gate":
 			_pattern_two_gate(seg_z)
+			_ease_segments = 1
+		"overhead_bar":
+			_pattern_overhead_bar(seg_z)
 			_ease_segments = 1
 		"coin_line":
 			_pattern_coin_line(seg_z, randi_range(-1, 1), 5)
@@ -90,6 +99,18 @@ func _spawn_pattern(seg_z: float) -> void:
 			_pattern_boost(seg_z)
 		_:
 			pass
+
+func _pattern_overhead_bar(seg_z: float) -> void:
+	# Full-width cyan gate. Jump still clears the red low blocks; this bar
+	# starts above the slide hurtbox and rises past jump apex.
+	var bar: Node3D = obstacle_scene.instantiate()
+	bar.set("kind", "overhead")
+	bar.name = "OverheadBar"
+	bar.position = Vector3(0.0, 0.0, seg_z - 10.0)
+	add_child(bar)
+	active_props.append(bar)
+	for lane in [-1, 0, 1]:
+		_spawn_at(coin_scene, lane, 0.32, seg_z - 10.0)
 
 func _pattern_single_block(seg_z: float) -> void:
 	var lane := randi_range(-1, 1)
@@ -146,19 +167,18 @@ func _spawn_at(scene: PackedScene, lane: int, y_pos: float, z_pos: float) -> voi
 
 func _cleanup_behind_player() -> void:
 	var cutoff := player.global_position.z + CLEANUP_DISTANCE
-	active_segments = active_segments.filter(func(s: Node3D) -> bool:
-		if not is_instance_valid(s):
-			return false
-		if s.global_position.z > cutoff:
-			s.queue_free()
-			return false
-		return true
-	)
-	active_props = active_props.filter(func(p: Node3D) -> bool:
-		if not is_instance_valid(p):
-			return false
-		if p.global_position.z > cutoff:
-			p.queue_free()
-			return false
-		return true
-	)
+	# Typed Array.filter returns an untyped Array on Godot 4.5 and the
+	# assignment throws every frame, so props never actually drop.
+	active_segments = _keep_ahead(active_segments, cutoff)
+	active_props = _keep_ahead(active_props, cutoff)
+
+func _keep_ahead(nodes: Array[Node3D], cutoff: float) -> Array[Node3D]:
+	var kept: Array[Node3D] = []
+	for n in nodes:
+		if not is_instance_valid(n):
+			continue
+		if n.global_position.z > cutoff:
+			n.queue_free()
+			continue
+		kept.append(n)
+	return kept
