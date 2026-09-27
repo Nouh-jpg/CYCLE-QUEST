@@ -68,7 +68,6 @@ func _build_ui() -> void:
 	_wire(_left_btn, "ui_left")
 	_wire(_right_btn, "ui_right")
 	_wire(_jump_btn, "ui_accept")
-	# Same action Player.gd reads for keyboard S / Down.
 	_wire(_slide_btn, "ui_down")
 
 func _make_button(p_name: String, label: String, idle: Color, pressed_col: Color) -> Button:
@@ -113,15 +112,6 @@ func _style(fill: Color) -> StyleBoxFlat:
 func _wire(btn: Button, action: String) -> void:
 	btn.button_down.connect(_on_down.bind(action))
 	btn.button_up.connect(_on_up.bind(action))
-
-func _process(_delta: float) -> void:
-	if _slide_btn == null:
-		return
-	var player := get_tree().get_first_node_in_group("player")
-	var busy := false
-	if player != null and player.has_method("slide_busy"):
-		busy = bool(player.slide_busy())
-	_slide_btn.modulate = Color(0.72, 0.72, 0.72, 0.85) if busy else Color.WHITE
 
 func _on_down(action: String) -> void:
 	if not _active or GameManager.is_game_over:

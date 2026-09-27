@@ -66,6 +66,7 @@ func _spawn_pattern(seg_z: float) -> void:
 		"coins_then_block",
 		"boost_lane",
 		"overhead_bar",
+		"overhead_bar",
 		"empty",
 	]
 	# Weight toward readable hazards after warm-up
@@ -101,8 +102,8 @@ func _spawn_pattern(seg_z: float) -> void:
 			pass
 
 func _pattern_overhead_bar(seg_z: float) -> void:
-	# Full-width cyan gate. Jump still clears the red low blocks; this bar
-	# starts above the slide hurtbox and rises past jump apex.
+	# Full-width magenta hanging gate. Red blocks stay jump-only.
+	# The lip sits above the slide duck and the panel rises past jump apex.
 	var bar: Node3D = obstacle_scene.instantiate()
 	bar.set("kind", "overhead")
 	bar.name = "OverheadBar"

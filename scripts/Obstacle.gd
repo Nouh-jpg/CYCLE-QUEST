@@ -2,12 +2,15 @@ extends Area3D
 
 const LANE_WIDTH := 3.0
 const NEAR_MISS_LATERAL := 4.2
-## Crawl gap under the gate. Slide hurtbox top stays near world y=0.8;
-## a standing or jumping rider still intersects the panel.
-const BEAM_BOTTOM := 1.10
-const BEAM_TOP := 4.60
+## Hanging gate. The original slide duck (capsule scale.y = 0.5, dropped
+## to the road) tops out near world y=1.05. Anything from the lip upward
+## catches a standing or jumping rider. The open gap under the lip is the cue.
+const BEAM_BOTTOM := 1.28
+const BEAM_TOP := 4.40
+const BAR_WIDTH := 9.6
+const BAR_DEPTH := 1.05
 
-## "low" = jump barrier. "overhead" = full-width cyan gate, slide required.
+## "low" = red jump block. "overhead" = magenta hanging gate, slide required.
 var kind := "low"
 var _passed := false
 var _near_miss_sent := false
@@ -62,7 +65,8 @@ func _apply_toon_look() -> void:
 
 func _build_overhead() -> void:
 	# Stable gate: no bob, or the crawl gap would change height mid-approach.
-	var beam_size := Vector3(9.6, BEAM_TOP - BEAM_BOTTOM, 1.0)
+	var gate_color := Color(0.95, 0.12, 0.82)
+	var beam_size := Vector3(BAR_WIDTH, BEAM_TOP - BEAM_BOTTOM, BAR_DEPTH)
 	var beam_center := Vector3(0.0, (BEAM_BOTTOM + BEAM_TOP) * 0.5, 0.0)
 	var mesh_node := get_node_or_null("Mesh") as MeshInstance3D
 	if mesh_node:
@@ -70,12 +74,12 @@ func _build_overhead() -> void:
 		beam.size = beam_size
 		mesh_node.mesh = beam
 		mesh_node.position = beam_center
-		StyleKit.apply_to_mesh(mesh_node, StyleKit.PALETTE["block"], {
+		StyleKit.apply_to_mesh(mesh_node, gate_color, {
 			"outline_width": 0.04,
-			"emission_strength": 0.55,
-			"emission_color": StyleKit.PALETTE["block"],
-			"shade_color": Color(0.02, 0.15, 0.35),
-			"base_glow": 0.06,
+			"emission_strength": 0.45,
+			"emission_color": gate_color,
+			"shade_color": Color(0.25, 0.02, 0.2),
+			"base_glow": 0.05,
 		})
 	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if col:
@@ -83,26 +87,55 @@ func _build_overhead() -> void:
 		shape.size = beam_size
 		col.shape = shape
 		col.position = beam_center
-	# Yellow lip marks the duck line. It stays inside the beam volume.
-	var lip := MeshInstance3D.new()
-	var lip_mesh := BoxMesh.new()
-	lip_mesh.size = Vector3(9.6, 0.16, 0.92)
-	lip.mesh = lip_mesh
-	lip.position = Vector3(0.0, BEAM_BOTTOM + 0.1, 0.0)
-	lip.name = "Lip"
-	add_child(lip)
-	StyleKit.apply_to_mesh(lip, StyleKit.PALETTE["obstacle_accent"], {
-		"outline_width": 0.0, "emission_strength": 0.7, "emission_color": Color(1.0, 0.85, 0.15)
-	})
+	# Yellow/black lip is the height cue. It stays inside the hit volume, above the open gap.
+	var lip_h := 0.22
+	var stripe_w := BAR_WIDTH / 8.0
+	for i in 8:
+		var stripe := MeshInstance3D.new()
+		var sm := BoxMesh.new()
+		sm.size = Vector3(stripe_w, lip_h, BAR_DEPTH + 0.08)
+		stripe.mesh = sm
+		stripe.position = Vector3(-BAR_WIDTH * 0.5 + stripe_w * (float(i) + 0.5), BEAM_BOTTOM + lip_h * 0.5, 0.02)
+		stripe.name = "LipStripe%d" % i
+		add_child(stripe)
+		var yellow := i % 2 == 0
+		var lip_color := Color(1.0, 0.92, 0.08) if yellow else Color(0.08, 0.06, 0.1)
+		StyleKit.apply_to_mesh(stripe, lip_color, {
+			"outline_width": 0.0,
+			"emission_strength": 0.85 if yellow else 0.05,
+			"emission_color": lip_color,
+		})
+	# One down-chevron per lane, on the face the chase camera sees (+Z).
+	var cues := Node3D.new()
+	cues.name = "DuckCues"
+	cues.position = Vector3(0.0, BEAM_BOTTOM + 0.7, BAR_DEPTH * 0.5 + 0.12)
+	add_child(cues)
+	for lane_x in [-3.0, 0.0, 3.0]:
+		_add_down_chevron(cues, lane_x)
+	# Edge posts frame the opening and sit outside the three lanes.
 	for side in [-1.0, 1.0]:
 		var post := MeshInstance3D.new()
 		var pm := BoxMesh.new()
-		pm.size = Vector3(0.34, BEAM_BOTTOM, 0.34)
+		pm.size = Vector3(0.32, BEAM_TOP, 0.32)
 		post.mesh = pm
-		post.position = Vector3(side * 4.62, pm.size.y * 0.5, 0.0)
+		post.position = Vector3(side * 4.78, pm.size.y * 0.5, 0.0)
 		add_child(post)
-		StyleKit.apply_to_mesh(post, StyleKit.PALETTE["block"], {
-			"outline_width": 0.03, "emission_strength": 0.35, "emission_color": StyleKit.PALETTE["block"]
+		StyleKit.apply_to_mesh(post, Color(0.55, 0.05, 0.48), {
+			"outline_width": 0.03, "emission_strength": 0.3, 			"emission_color": gate_color
+		})
+
+func _add_down_chevron(parent: Node3D, x: float) -> void:
+	for sign in [-1.0, 1.0]:
+		var arm := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(0.78, 0.14, 0.12)
+		arm.mesh = mesh
+		arm.position = Vector3(x + sign * 0.26, 0.2, 0.0)
+		arm.rotation_degrees.z = sign * -52.0
+		parent.add_child(arm)
+		var cue := Color(1.0, 0.95, 0.15)
+		StyleKit.apply_to_mesh(arm, cue, {
+			"outline_width": 0.0, "emission_strength": 0.9, "emission_color": cue
 		})
 
 func _process(delta: float) -> void:
@@ -110,10 +143,9 @@ func _process(delta: float) -> void:
 		return
 	_anim_t += delta
 	if kind == "overhead":
-		var lip := get_node_or_null("Lip") as MeshInstance3D
-		if lip:
-			var s := 1.0 + sin(_anim_t * 8.0) * 0.04
-			lip.scale = Vector3(1.0, s, 1.0)
+		var cues := get_node_or_null("DuckCues") as Node3D
+		if cues:
+			cues.position.z = BAR_DEPTH * 0.5 + 0.12 + sin(_anim_t * 6.0) * 0.05
 		_try_near_miss()
 		return
 	# Warning wobble + pulse so obstacles read as living hazards

@@ -19,12 +19,6 @@ const LEAN_LERP := 16.0
 const WHEEL_RADIUS := 0.38
 const COYOTE_TIME := 0.08
 const JUMP_BUFFER := 0.08
-const SLIDE_DURATION := 0.7
-const SLIDE_COOLDOWN := 0.28
-## Short capsule kept on the same foot line as the standing hurtbox.
-## World top stays under the cyan gate (Obstacle beam bottom 1.10).
-const SLIDE_CAPSULE_HEIGHT := 0.68
-const SLIDE_CAPSULE_RADIUS := 0.28
 const BASE_FOV := 72.0
 const MAX_FOV := 84.0
 const COIN_BASE_POINTS := 10
@@ -63,11 +57,6 @@ var _shake_amp := 0.0
 var _cam_base_pos := Vector3(0.0, 4.5, 8.5)
 var _start_z := 0.0
 var _near_miss_cd := 0.0
-var _slide_left := 0.0
-var _slide_cd := 0.0
-var _stand_height := 1.6
-var _stand_radius := 0.45
-var _stand_shape_y := 0.0
 
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
@@ -86,7 +75,6 @@ func _ready() -> void:
 	_apply_character_visuals()
 	_setup_particles()
 	_setup_camera()
-	_cache_stand_hurtbox()
 
 func _setup_camera() -> void:
 	# Classic Genesis runner framing: centered behind, pulled back/up, wide FOV.
@@ -491,11 +479,6 @@ func _physics_process(delta: float) -> void:
 
 	_run_time += delta
 	_near_miss_cd = maxf(0.0, _near_miss_cd - delta)
-	_slide_cd = maxf(0.0, _slide_cd - delta)
-	if is_sliding:
-		_slide_left -= delta
-		if _slide_left <= 0.0:
-			_end_slide()
 	_combo_timer = maxf(0.0, _combo_timer - delta)
 	if _combo_timer <= 0.0 and combo > 0:
 		combo = 0
@@ -544,7 +527,7 @@ func _physics_process(delta: float) -> void:
 		_sfx("jump")
 
 	# Land squash
-	if on_floor and not _was_on_floor and not is_sliding:
+	if on_floor and not _was_on_floor:
 		_jump_stretch = 0.0
 		_play_squash(Vector3(1.3, 0.65, 1.3), 0.1)
 	_was_on_floor = on_floor
@@ -562,8 +545,7 @@ func _physics_process(delta: float) -> void:
 		_sfx("lane")
 		_prev_lane = target_lane
 
-	# Keyboard (S / Down) and the touch SLIDE button both emit ui_down.
-	if Input.is_action_just_pressed("ui_down") and is_on_floor() and not is_sliding and not is_jumping and _slide_cd <= 0.0:
+	if Input.is_action_just_pressed("ui_down") and is_on_floor() and not is_sliding:
 		_start_slide()
 
 	move_and_slide()
@@ -622,14 +604,8 @@ func _update_ride_anim(delta: float) -> void:
 		pitch = -10.0
 		_jump_stretch = maxf(0.0, _jump_stretch - delta * 2.5)
 
-	if is_sliding:
-		# Crouch the billboard. look_at still aims the card at the camera.
-		visual_root.position.y = -0.42
-		visual_root.rotation_degrees = Vector3(22.0, 0.0, _lean_z)
-		visual_root.scale = Vector3(1.06, 0.42, 1.06) * VISUAL_SCALE
-	else:
-		visual_root.position.y = bob
-		visual_root.rotation_degrees = Vector3(pitch, 0.0, _lean_z)
+	visual_root.position.y = bob
+	visual_root.rotation_degrees = Vector3(pitch, 0.0, _lean_z)
 
 	# Wheel spin ∝ speed (rad/s = v / r). From the chase camera the axle is local Z,
 	# so rotate_z turns the ring in view. (rotate_x is the sideways axle and
@@ -664,58 +640,24 @@ func _burst_sparkle() -> void:
 func add_shake(amount: float) -> void:
 	_shake_amp = maxf(_shake_amp, amount)
 
-func slide_busy() -> bool:
-	return is_sliding or _slide_cd > 0.0
-
-func _cache_stand_hurtbox() -> void:
-	if collision_shape == null or collision_shape.shape == null:
-		return
-	collision_shape.scale = Vector3.ONE
-	var shape := collision_shape.shape.duplicate() as CapsuleShape3D
-	if shape == null:
-		return
-	collision_shape.shape = shape
-	_stand_height = shape.height
-	_stand_radius = shape.radius
-	_stand_shape_y = collision_shape.position.y
-
-func _apply_hurtbox(sliding: bool) -> void:
-	if collision_shape == null:
-		return
-	var shape := collision_shape.shape as CapsuleShape3D
-	if shape == null:
-		return
-	# Non-uniform node scale does not reliably shrink a capsule, so the old
-	# slide still overlapped every low block. Resize the shape instead.
-	collision_shape.scale = Vector3.ONE
-	if not sliding:
-		shape.height = _stand_height
-		shape.radius = _stand_radius
-		collision_shape.position.y = _stand_shape_y
-		return
-	var stand_bottom := _stand_shape_y - _stand_height * 0.5
-	var slide_height := maxf(SLIDE_CAPSULE_HEIGHT, SLIDE_CAPSULE_RADIUS * 2.0 + 0.06)
-	shape.radius = SLIDE_CAPSULE_RADIUS
-	shape.height = slide_height
-	collision_shape.position.y = stand_bottom + slide_height * 0.5
-
 func _start_slide() -> void:
 	is_sliding = true
-	_slide_left = SLIDE_DURATION
-	if _squash_tween and _squash_tween.is_valid():
-		_squash_tween.kill()
-	_apply_hurtbox(true)
-
-func _end_slide() -> void:
-	if not is_sliding:
-		return
-	is_sliding = false
-	_slide_cd = SLIDE_COOLDOWN
-	_apply_hurtbox(false)
+	if collision_shape:
+		collision_shape.scale.y = 0.5
+		collision_shape.position.y = -0.25
+	if visual_root:
+		visual_root.scale = Vector3(1.15, 0.55, 1.15) * VISUAL_SCALE
+	elif mesh_instance:
+		mesh_instance.scale.y = 0.5
+	await get_tree().create_timer(0.8).timeout
+	if collision_shape:
+		collision_shape.scale.y = 1.0
+		collision_shape.position.y = 0.0
 	if visual_root:
 		visual_root.scale = Vector3(VISUAL_SCALE, VISUAL_SCALE, VISUAL_SCALE)
-		visual_root.position.y = 0.0
-		visual_root.rotation_degrees = Vector3.ZERO
+	elif mesh_instance:
+		mesh_instance.scale.y = 1.0
+	is_sliding = false
 
 func collect_coin() -> void:
 	if GameManager.is_game_over:

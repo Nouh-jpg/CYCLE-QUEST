@@ -1,6 +1,6 @@
 extends SceneTree
-## Headless checks: chaser stays off the lens, slide ducks the cyan gate,
-## jump still clears a red low block. Touch SLIDE and keyboard ui_down.
+## Headless checks: chaser stays off the lens, the existing slide duck
+## clears the magenta hanging gate, and jump still clears a red low block.
 
 var _failed := false
 
@@ -55,11 +55,12 @@ func _test_slide(main: Node, player: CharacterBody3D) -> void:
 		_fail("Touch SLIDE did not start a slide (on_floor=%s)" % player.is_on_floor())
 		return
 	var slide_top := _capsule_top(player)
-	var slide_h := (player.collision_shape.shape as CapsuleShape3D).height
-	print("SLIDE touch height=%.3f world_top=%.3f" % [slide_h, slide_top])
-	if slide_h > 0.9:
-		_fail("Slide hurtbox did not shrink (height %.3f)" % slide_h)
-	if slide_top > 0.98:
+	var slide_col := player.get_node("CollisionShape3D") as CollisionShape3D
+	var slide_scale_y := slide_col.scale.y
+	print("SLIDE touch scale_y=%.3f world_top=%.3f" % [slide_scale_y, slide_top])
+	if slide_scale_y > 0.75:
+		_fail("Slide did not duck the hitbox (scale.y %.3f)" % slide_scale_y)
+	if slide_top > 1.16:
 		_fail("Slide hurtbox top %.3f is too tall to clear the gate" % slide_top)
 
 	var low := _spawn_obstacle(main, "low", Vector3(player.global_position.x, 0.5, player.global_position.z))
@@ -68,25 +69,25 @@ func _test_slide(main: Node, player: CharacterBody3D) -> void:
 	print("LOW while sliding overlap=%s low_top=%.3f" % [low_hit, low_top])
 	if not low_hit:
 		_fail("Slide passed through a red low block; jump would not be required")
-	# Standing foot line (slide keeps the same contact point).
-	var foot := float(player.global_position.y + float(player._stand_shape_y) - float(player._stand_height) * 0.5)
-	var apex_bottom := foot + (9.5 * 9.5) / (2.0 * 24.0)
+	# Jump rise is from the road, not the ducked pose.
+	var stand_half := 0.8
+	var apex_bottom := 0.1 + (9.5 * 9.5) / (2.0 * 24.0)
 	print("JUMP apex_bottom=%.3f low_top=%.3f" % [apex_bottom, low_top])
 	if apex_bottom < low_top + 0.15:
 		_fail("Jump apex bottom %.3f does not clear low top %.3f" % [apex_bottom, low_top])
 	low.queue_free()
 
 	var guard := 0
-	while player.slide_busy() and guard < 120:
+	while player.is_sliding and guard < 90:
 		await physics_frame
 		guard += 1
-	if player.is_sliding or player._slide_cd > 0.0:
-		_fail("Slide did not finish and cool down")
+	if player.is_sliding:
+		_fail("Slide did not finish")
 		return
 	var stand_top := _capsule_top(player)
-	var stand_h := (player.collision_shape.shape as CapsuleShape3D).height
-	print("STAND height=%.3f world_top=%.3f" % [stand_h, stand_top])
-	if stand_h < 1.4:
+	var stand_col := player.get_node("CollisionShape3D") as CollisionShape3D
+	print("STAND scale_y=%.3f world_top=%.3f" % [stand_col.scale.y, stand_top])
+	if stand_col.scale.y < 0.9:
 		_fail("Hurtbox did not restore after slide")
 
 	var bar := _spawn_obstacle(main, "overhead", Vector3(player.global_position.x, 0.0, player.global_position.z))
@@ -96,14 +97,16 @@ func _test_slide(main: Node, player: CharacterBody3D) -> void:
 	var beam_bottom := _box_bottom(bar)
 	var beam_top := _box_top(bar)
 	print("GATE bottom=%.3f top=%.3f stand_top=%.3f" % [beam_bottom, beam_top, stand_top])
-	if beam_bottom < 1.05:
+	if beam_bottom < 1.2:
 		_fail("Gate crawl gap is too low (bottom %.3f)" % beam_bottom)
-	if beam_top < apex_bottom + float(player._stand_height) - 0.2:
+	if beam_top < apex_bottom + stand_half * 2.0 - 0.15:
 		_fail("Gate is short enough to jump over (top %.3f)" % beam_top)
+	if bar.get_node_or_null("DuckCues") == null or bar.find_children("LipStripe*", "", true, false).size() < 4:
+		_fail("Hanging gate is missing the lip stripes or down-chevrons")
 	var stand_hit := await _query_overlap(player, bar)
 	print("GATE while standing overlap=%s" % stand_hit)
 	if not stand_hit:
-		_fail("Standing rider does not hit the cyan gate")
+		_fail("Standing rider does not hit the magenta gate")
 
 	Input.action_press("ui_down")
 	await physics_frame
@@ -116,7 +119,7 @@ func _test_slide(main: Node, player: CharacterBody3D) -> void:
 	var slide_hit := await _query_overlap(player, bar)
 	print("GATE while sliding overlap=%s slide_top=%.3f" % [slide_hit, slide_top_2])
 	if slide_hit:
-		_fail("Slide still hits the cyan gate (top %.3f, beam %.3f)" % [slide_top_2, beam_bottom])
+		_fail("Slide still hits the magenta gate (top %.3f, beam %.3f)" % [slide_top_2, beam_bottom])
 	if slide_top_2 > beam_bottom - 0.05:
 		_fail("Slide top %.3f is not under beam bottom %.3f" % [slide_top_2, beam_bottom])
 	bar.queue_free()
@@ -249,8 +252,9 @@ func _query_overlap(player: CharacterBody3D, area: Area3D) -> bool:
 		await physics_frame
 		var space := player.get_world_3d().direct_space_state
 		var params := PhysicsShapeQueryParameters3D.new()
-		params.shape = player.collision_shape.shape
-		params.transform = player.collision_shape.global_transform
+		var col := player.get_node("CollisionShape3D") as CollisionShape3D
+		params.shape = col.shape
+		params.transform = col.global_transform
 		params.collide_with_areas = true
 		params.collide_with_bodies = false
 		params.collision_mask = 4
@@ -260,8 +264,9 @@ func _query_overlap(player: CharacterBody3D, area: Area3D) -> bool:
 	return hit
 
 func _capsule_top(player: CharacterBody3D) -> float:
-	var shape := player.collision_shape.shape as CapsuleShape3D
-	return player.collision_shape.global_position.y + shape.height * 0.5
+	var col := player.get_node("CollisionShape3D") as CollisionShape3D
+	var shape := col.shape as CapsuleShape3D
+	return col.global_position.y + shape.height * 0.5 * absf(col.scale.y)
 
 func _box_top(area: Area3D) -> float:
 	var col := area.get_node("CollisionShape3D") as CollisionShape3D
