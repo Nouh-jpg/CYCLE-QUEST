@@ -96,7 +96,7 @@ mesh = SubResource("CapsuleMesh_Player")
 shape = SubResource("CapsuleShape_Player")
 
 [node name="Camera3D" type="Camera3D" parent="Player"]
-transform = Transform3D(1, 0, 0, 0, 0.947, -0.321, 0, 0.321, 0.947, 0, 3.2, 6.5)
+transform = Transform3D(0.980581, -0.0567574, 0.187724, 0, 0.957206, 0.289407, -0.196116, -0.283787, 0.938618, 1.2, 3, 6)
 current = true
 fov = 65.0
 

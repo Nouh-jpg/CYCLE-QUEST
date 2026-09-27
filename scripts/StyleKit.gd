@@ -10,18 +10,21 @@ const OUTLINE_SHADER := preload("res://shaders/outline.gdshader")
 
 ## Vibrant anime palette (no muddy greys/browns).
 const PALETTE := {
-	"maya_skin": Color(1.0, 0.78, 0.72),
-	"maya_hair": Color(0.95, 0.35, 0.95),
-	"maya_hair_dark": Color(0.65, 0.15, 0.85),
-	"maya_bike": Color(1.0, 0.35, 0.75),
-	"maya_bike_accent": Color(0.7, 0.2, 1.0),
+	"maya_skin": Color(1.0, 0.82, 0.74),
+	"maya_hair": Color(1.0, 0.169, 0.29),  # #FF2B4A vivid crimson
+	"maya_hair_dark": Color(0.545, 0.039, 0.102),  # #8B0A1A
+	"maya_hair_accent": Color(1.0, 0.45, 0.62),  # soft pink highlight
+	"maya_outfit": Color(0.12, 0.08, 0.14),  # near-black jacket
+	"maya_skirt": Color(1.0, 0.35, 0.55),  # pink skirt
+	"maya_bike": Color(0.95, 0.12, 0.28),
+	"maya_bike_accent": Color(1.0, 0.45, 0.7),
 	"jax_skin": Color(0.92, 0.75, 0.62),
 	"jax_hair": Color(0.25, 0.85, 1.0),
 	"jax_hair_dark": Color(0.15, 0.45, 0.95),
 	"jax_bike": Color(0.2, 0.75, 1.0),
 	"jax_bike_accent": Color(0.15, 1.0, 0.85),
 	"eye_white": Color(1.0, 1.0, 1.0),
-	"eye_iris_maya": Color(0.55, 0.2, 0.95),
+	"eye_iris_maya": Color(0.95, 0.25, 0.4),  # red-pink iris matching hair
 	"eye_iris_jax": Color(0.15, 0.55, 1.0),
 	"eye_pupil": Color(0.05, 0.05, 0.12),
 	"chaser": Color(0.55, 0.1, 0.85),
