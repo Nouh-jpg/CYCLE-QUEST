@@ -29,10 +29,10 @@ const SPRITE_TARGET_HEIGHT := 3.0
 const MAYA_SPRITE_PATH := "res://assets/characters/maya_rider_rear.png"
 const JAX_SPRITE_PATH := "res://assets/characters/jax_rider_rear.png"
 # Wheel centers as fractions of the rear card (x from the left, y from the top).
-const MAYA_REAR_WHEEL := Vector2(0.50, 0.88)
-const MAYA_FRONT_WHEEL := Vector2(0.49, 0.64)
-const JAX_REAR_WHEEL := Vector2(0.48, 0.90)
-const JAX_FRONT_WHEEL := Vector2(0.52, 0.62)
+const MAYA_REAR_WHEEL := Vector2(0.40, 0.91)
+const MAYA_FRONT_WHEEL := Vector2(0.42, 0.86)
+const JAX_REAR_WHEEL := Vector2(0.42, 0.90)
+const JAX_FRONT_WHEEL := Vector2(0.45, 0.84)
 
 var target_lane := 0 # -1 Left, 0 Center, 1 Right
 var is_jumping := false
@@ -211,8 +211,8 @@ func _build_rider_wheels(root: Node3D, card: MeshInstance3D, rear_uv: Vector2, f
 	var size := quad.size
 	# Rear ring is closer to the chase camera; the front ring is smaller and higher on the bike.
 	# Parent is visual_root (not the card) so bob/lean still move the wheels while look_at owns the card.
-	_add_spin_wheel(root, _wheel_spot(size, rear_uv, 0.22), size.y * 0.125, accent)
-	_add_spin_wheel(root, _wheel_spot(size, front_uv, 0.08), size.y * 0.078, accent)
+	_add_spin_wheel(root, _wheel_spot(size, rear_uv, 0.1), size.y * 0.12, accent)
+	_add_spin_wheel(root, _wheel_spot(size, front_uv, 0.05), size.y * 0.085, accent)
 
 func _wheel_spot(card_size: Vector2, uv: Vector2, z_bias: float) -> Vector3:
 	# Card bottom sits at y=0. uv.y is measured from the top of the drawing.
@@ -222,40 +222,39 @@ func _add_spin_wheel(parent: Node3D, pos: Vector3, radius: float, accent: Color)
 	var hub := Node3D.new()
 	hub.name = "Wheel"
 	hub.position = pos
-	# Local +X is the axle, aimed down the road. rotate_x in _update_ride_anim
-	# then turns the ring in the chase-camera view.
-	hub.rotation_degrees.y = 90.0
+	# Identity orientation: local Z points at the chase camera. _update_ride_anim
+	# spins with rotate_z so the ring turns in view instead of edge-on.
 	parent.add_child(hub)
 
 	var ring := MeshInstance3D.new()
 	ring.name = "Ring"
 	var torus := TorusMesh.new()
-	torus.inner_radius = radius * 0.66
+	torus.inner_radius = radius * 0.62
 	torus.outer_radius = radius
 	torus.rings = 8
-	torus.ring_segments = 22
+	torus.ring_segments = 24
 	ring.mesh = torus
-	ring.rotation_degrees.z = 90.0
+	# TorusMesh lies in XZ (axis Y). Pitch it into the XY plane so it faces the camera.
+	ring.rotation_degrees.x = 90.0
 	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	hub.add_child(ring)
 	StyleKit.apply_to_mesh(ring, Color(0.08, 0.08, 0.1), {
 		"outline_width": 0.012,
-		"emission_strength": 0.12,
-		"emission_color": Color(0.35, 0.35, 0.4),
+		"emission_strength": 0.15,
+		"emission_color": Color(0.45, 0.45, 0.5),
 	})
 
 	var spoke := MeshInstance3D.new()
 	spoke.name = "Spoke"
 	var bar := BoxMesh.new()
-	bar.size = Vector3(radius * 0.2, radius * 1.55, radius * 0.16)
+	bar.size = Vector3(radius * 0.22, radius * 1.75, radius * 0.18)
 	spoke.mesh = bar
-	# Negative local X faces the chase camera (axle points down the road).
-	spoke.position = Vector3(-radius * 0.12, 0.0, 0.0)
+	spoke.position = Vector3(0.0, 0.0, radius * 0.08)
 	spoke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	hub.add_child(spoke)
 	StyleKit.apply_to_mesh(spoke, accent, {
 		"outline_width": 0.0,
-		"emission_strength": 0.9,
+		"emission_strength": 0.95,
 		"emission_color": accent,
 	})
 
@@ -522,12 +521,13 @@ func _update_ride_anim(delta: float) -> void:
 	visual_root.position.y = bob
 	visual_root.rotation_degrees = Vector3(pitch, 0.0, _lean_z)
 
-	# Wheel spin ∝ speed (rad/s = v / r). Hubs are yawed so local X is the axle
-	# and the ring turns in view of the chase camera.
+	# Wheel spin ∝ speed (rad/s = v / r). From the chase camera the axle is local Z,
+	# so rotate_z turns the ring in view. (rotate_x is the sideways axle and
+	# leaves these rear-view discs edge-on.)
 	var spin_rad := (current_speed / WHEEL_RADIUS) * delta * 1.15
 	for w in wheel_nodes:
 		if is_instance_valid(w):
-			w.rotate_x(spin_rad)
+			w.rotate_z(spin_rad)
 
 func _play_squash(scale_to: Vector3, duration: float) -> void:
 	if visual_root == null:
