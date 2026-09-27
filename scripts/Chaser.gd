@@ -27,6 +27,8 @@ var _anim_t := 0.0
 var _danger := 0.0 ## 0..1 for UI vignette
 ## Tracks cruise speed, never the boost surge, so the gap can open.
 var _pursuit := 15.0
+## Set once the chaser has pressed in, so a boost escape can flash once.
+var _escape_ready := false
 
 func _ready() -> void:
 	player = get_tree().root.find_child("Player", true, false)
@@ -159,6 +161,12 @@ func _physics_process(delta: float) -> void:
 	var ui = get_tree().root.find_child("UI", true, false)
 	if ui and ui.has_method("set_danger_level"):
 		ui.set_danger_level(_danger)
+	if gap < PRESS_GAP + 0.45:
+		_escape_ready = true
+	elif _escape_ready and boosting and gap >= START_GAP - 0.2:
+		_escape_ready = false
+		if ui and ui.has_method("popup_points"):
+			ui.popup_points("AWAY!", Color(0.45, 1.0, 0.95))
 	var ga := get_node_or_null("/root/GameAudio")
 	if ga and ga.has_method("set_danger_energy"):
 		ga.set_danger_energy(_danger)

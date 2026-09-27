@@ -73,4 +73,4 @@ ui_accept={
 
 [cycle_quest]
 
-always_show_touch_controls=true
+always_show_touch_controls=false
