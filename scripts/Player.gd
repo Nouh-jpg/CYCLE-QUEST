@@ -25,7 +25,7 @@ const COIN_BASE_POINTS := 10
 const NEAR_MISS_POINTS := 25
 const BOOST_POINTS := 50
 const COMBO_GAP := 1.35
-const SPRITE_TARGET_HEIGHT := 2.2
+const SPRITE_TARGET_HEIGHT := 3.0
 const MAYA_SPRITE_PATH := "res://assets/characters/maya_rider.png"
 const JAX_SPRITE_PATH := "res://assets/characters/jax_on_bike.png"
 
@@ -63,6 +63,7 @@ var wheel_nodes: Array[Node3D] = []
 var speed_particles: GPUParticles3D
 var dust_particles: GPUParticles3D
 var sparkle_particles: GPUParticles3D
+var _rider_cards: Array[MeshInstance3D] = []
 
 func _ready() -> void:
 	_start_z = global_position.z
@@ -129,21 +130,34 @@ func _build_jax(root: Node3D) -> void:
 		if bike_spr == null and rider_spr == null:
 			_build_jax_fallback(root)
 
+func _load_rider_texture(path: String) -> Texture2D:
+	# Decode the PNG bytes ourselves. ResourceLoader would return the imported
+	# CompressedTexture2D, and a stale Windows .ctex / VRAM mip chain can
+	# streak that into a one-pixel stick. No mipmaps are generated here.
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file != null:
+		var bytes := file.get_buffer(file.get_length())
+		file.close()
+		var img := Image.new()
+		var err := img.load_png_from_buffer(bytes)
+		if err == OK and img.get_width() >= 2 and img.get_height() >= 2:
+			if img.has_mipmaps():
+				img.clear_mipmaps()
+			return ImageTexture.create_from_image(img)
+	if ResourceLoader.exists(path):
+		var imported := load(path) as Texture2D
+		if imported != null and imported.get_width() >= 2 and imported.get_height() >= 2:
+			return imported
+	push_warning("Missing rider texture: %s" % path)
+	return null
+
 func _make_rider_sprite(path: String, target_height: float = SPRITE_TARGET_HEIGHT) -> MeshInstance3D:
-	if not ResourceLoader.exists(path):
-		push_warning("Missing rider texture: %s" % path)
+	var tex := _load_rider_texture(path)
+	if tex == null:
 		return null
-	var tex: Texture2D = load(path) as Texture2D
-	# A 0/1 px texture means the import failed. Don't build a paper-thin card from it.
-	if tex == null or tex.get_width() < 2 or tex.get_height() < 2:
-		push_warning("Failed to load rider texture: %s" % path)
-		return null
-	# Chase camera is a child on local +Z, looking down -Z. A quad in the XY plane
-	# (normal +Z) shows its face to that camera. Sprite3D Y-billboard rebuilds
-	# that facing in the material shader, which turns the card edge-on (a thin
-	# stick) on some Windows drivers, and it also throws away visual_root lean/pitch.
 	var aspect := float(tex.get_width()) / float(tex.get_height())
 	var quad := QuadMesh.new()
+	# Front of the card is +Z. _face_riders_to_camera points that axis at the camera.
 	quad.orientation = QuadMesh.FACE_Z
 	quad.size = Vector2(target_height * aspect, target_height)
 	var mi := MeshInstance3D.new()
@@ -158,14 +172,29 @@ func _make_rider_sprite(path: String, target_height: float = SPRITE_TARGET_HEIGH
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
-	# Base-level sampling only. A mipmapped 3D sampler on these PNGs (sizes not
-	# multiples of 4, previously set to recompress to VRAM in 3D) can streak
-	# the card into a line. Linear filtering stays on the full-resolution texels.
+	# LINEAR is the base mip only. Do not use LINEAR_WITH_MIPMAPS: the PNG
+	# dimensions are not multiples of 4, and a mip sample streaks on D3D12.
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	mat.texture_repeat = false
 	mat.render_priority = 1
 	mi.material_override = mat
+	_rider_cards.append(mi)
 	return mi
+
+func _face_riders_to_camera() -> void:
+	# Runs from _physics_process and _process. The _process call is last,
+	# after visual_root lean/pitch, so the rendered frame cannot stay edge-on.
+	# Camera3D is a child of this body, behind on local +Z. look_at(..., UP, true)
+	# aims QuadMesh +Z at that camera and keeps world up (zero roll).
+	if camera == null or _rider_cards.is_empty():
+		return
+	var cam_pos := camera.global_position
+	for card in _rider_cards:
+		if not is_instance_valid(card) or not card.is_inside_tree():
+			continue
+		if card.global_position.is_equal_approx(cam_pos):
+			continue
+		card.look_at(cam_pos, Vector3.UP, true)
 
 func _build_maya_fallback(root: Node3D) -> void:
 	var skin: Color = StyleKit.PALETTE["maya_skin"]
@@ -295,6 +324,7 @@ func _make_particle_node(p_name: String, _color: Color, amount: int, lifetime: f
 
 func _physics_process(delta: float) -> void:
 	if GameManager.is_game_over:
+		_face_riders_to_camera()
 		return
 
 	_run_time += delta
@@ -369,6 +399,7 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	_update_speed_feel(delta)
+	_face_riders_to_camera()
 
 	if speed_particles:
 		speed_particles.emitting = current_speed >= SPEED_LINE_THRESHOLD
@@ -396,10 +427,11 @@ func _update_speed_feel(delta: float) -> void:
 		ui.update_speed(current_speed, MAX_FORWARD_SPEED)
 
 func _process(delta: float) -> void:
-	if visual_root == null or GameManager.is_game_over:
-		return
-	_anim_time += delta
-	_update_ride_anim(delta)
+	if visual_root != null and not GameManager.is_game_over:
+		_anim_time += delta
+		_update_ride_anim(delta)
+	# After ride lean/pitch, aim the card at the chase camera again.
+	_face_riders_to_camera()
 
 func _update_ride_anim(delta: float) -> void:
 	# Target lean toward destination lane
