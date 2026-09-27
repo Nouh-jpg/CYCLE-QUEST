@@ -19,14 +19,14 @@ radius = 0.45
 height = 1.6
 
 [sub_resource type="ProceduralSkyMaterial" id="SkyMat_Anime"]
-sky_top_color = Color(0.35, 0.45, 1, 1)
-sky_horizon_color = Color(0.7, 0.65, 1, 1)
-sky_curve = 0.12
-ground_bottom_color = Color(0.45, 0.2, 0.75, 1)
-ground_horizon_color = Color(0.55, 0.4, 0.85, 1)
-ground_curve = 0.08
-sun_angle_max = 45.0
-sun_curve = 0.1
+sky_top_color = Color(0.15, 0.35, 0.95, 1)
+sky_horizon_color = Color(0.55, 0.85, 1, 1)
+sky_curve = 0.08
+ground_bottom_color = Color(0.2, 0.55, 0.25, 1)
+ground_horizon_color = Color(0.45, 0.75, 0.35, 1)
+ground_curve = 0.06
+sun_angle_max = 30.0
+sun_curve = 0.05
 
 [sub_resource type="Sky" id="Sky_Anime"]
 sky_material = SubResource("SkyMat_Anime")
@@ -35,7 +35,7 @@ sky_material = SubResource("SkyMat_Anime")
 background_mode = 2
 sky = SubResource("Sky_Anime")
 ambient_light_source = 2
-ambient_light_color = Color(0.85, 0.8, 1, 1)
+ambient_light_color = Color(0.75, 0.9, 1, 1)
 ambient_light_energy = 0.95
 tonemap_mode = 3
 tonemap_exposure = 1.05
@@ -48,17 +48,17 @@ ssao_detail = 0.5
 ssao_horizon = 0.06
 ssao_sharpness = 0.85
 glow_enabled = true
-glow_intensity = 1.35
+glow_intensity = 0.95
 glow_strength = 1.1
-glow_bloom = 0.65
+glow_bloom = 0.35
 glow_hdr_threshold = 0.75
 glow_hdr_scale = 2.0
 glow_hdr_luminance_cap = 12.0
 glow_normalized = true
 adjustment_enabled = true
 adjustment_brightness = 1.05
-adjustment_contrast = 1.08
-adjustment_saturation = 1.4
+adjustment_contrast = 1.15
+adjustment_saturation = 1.55
 
 [sub_resource type="CameraAttributesPractical" id="CameraAttributes_Main"]
 
@@ -66,8 +66,8 @@ adjustment_saturation = 1.4
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 14, 6)
-light_color = Color(1, 0.92, 0.78, 1)
-light_energy = 1.35
+light_color = Color(1, 0.95, 0.7, 1)
+light_energy = 1.5
 light_indirect_energy = 1.0
 shadow_enabled = true
 directional_shadow_mode = 1
@@ -96,9 +96,9 @@ mesh = SubResource("CapsuleMesh_Player")
 shape = SubResource("CapsuleShape_Player")
 
 [node name="Camera3D" type="Camera3D" parent="Player"]
-transform = Transform3D(0.980581, -0.0567574, 0.187724, 0, 0.957206, 0.289407, -0.196116, -0.283787, 0.938618, 1.2, 3, 6)
+transform = Transform3D(1, 0, 0, 0, 0.961262, 0.275637, 0, -0.275637, 0.961262, 0, 4.5, 8.5)
 current = true
-fov = 65.0
+fov = 72.0
 
 [node name="Chaser" parent="." instance=ExtResource("3_chaser")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 18)

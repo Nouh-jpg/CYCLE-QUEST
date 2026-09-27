@@ -3,11 +3,16 @@ extends CharacterBody3D
 const LANE_WIDTH := 3.0
 const BASE_FORWARD_SPEED := 15.0
 const BOOST_SPEED := 25.0
-const LANE_SWITCH_SPEED := 12.0
-const JUMP_FORCE := 8.0
-const GRAVITY := 20.0
+const LANE_SWITCH_SPEED := 18.0
+const JUMP_FORCE := 9.5
+const GRAVITY := 24.0
 const SPEED_LINE_THRESHOLD := 20.0
-const VISUAL_SCALE := 1.65
+const VISUAL_SCALE := 0.9
+const IDLE_BOB_AMP := 0.045
+const IDLE_BOB_SPEED := 9.0
+const LEAN_MAX_DEG := 22.0
+const LEAN_LERP := 14.0
+const WHEEL_RADIUS := 0.38
 
 var target_lane := 0 # -1 Left, 0 Center, 1 Right
 var is_jumping := false
@@ -18,11 +23,17 @@ var _visuals_applied := false
 var _was_on_floor := true
 var _prev_lane := 0
 var _squash_tween: Tween
+var _anim_time := 0.0
+var _lean_z := 0.0
+var _jump_stretch := 0.0
 
 @onready var mesh_instance: MeshInstance3D = $MeshInstance3D
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
+@onready var camera: Camera3D = $Camera3D
 
 var visual_root: Node3D
+var bike_root: Node3D
+var wheel_nodes: Array[Node3D] = []
 var speed_particles: GPUParticles3D
 var dust_particles: GPUParticles3D
 var sparkle_particles: GPUParticles3D
@@ -30,6 +41,16 @@ var sparkle_particles: GPUParticles3D
 func _ready() -> void:
 	_apply_character_visuals()
 	_setup_particles()
+	_setup_camera()
+
+func _setup_camera() -> void:
+	# Classic Genesis runner framing: centered behind, pulled back/up, wide FOV.
+	if camera == null:
+		return
+	camera.position = Vector3(0.0, 4.5, 8.5)
+	camera.rotation_degrees = Vector3(-16.0, 0.0, 0.0)
+	camera.fov = 72.0
+	camera.current = true
 
 func _apply_character_visuals() -> void:
 	if _visuals_applied:
@@ -59,235 +80,162 @@ func _apply_character_visuals() -> void:
 		_build_jax(visual_root, skin, hair, hair_dark, bike, bike_accent, iris)
 
 func _build_maya(root: Node3D, skin: Color, hair: Color, hair_dark: Color, bike: Color, bike_accent: Color, iris: Color) -> void:
+	# Simplified silhouette for readable Genesis-scale runner (bold, fewer parts).
 	var hair_hi: Color = StyleKit.PALETTE["maya_hair_accent"]
 	var outfit: Color = StyleKit.PALETTE["maya_outfit"]
 	var skirt_col: Color = StyleKit.PALETTE["maya_skirt"]
 	var black := Color(0.08, 0.06, 0.1)
 
-	# --- Head ---
-	_add_mesh(root, _sphere(0.38), Vector3(0, 1.55, -0.02), skin, {
-		"outline_width": 0.04, "emission_strength": 0.28, "emission_color": skin, "base_glow": 0.18
+	# Head
+	_add_mesh(root, _sphere(0.36), Vector3(0, 1.52, -0.02), skin, {
+		"outline_width": 0.045, "emission_strength": 0.2, "emission_color": skin, "base_glow": 0.12
 	})
-	# Face plate (-Z forward) for cheek / eye read from 3/4
-	_add_mesh(root, _box(Vector3(0.52, 0.42, 0.1)), Vector3(0, 1.48, -0.32), skin, {
-		"outline_width": 0.025, "emission_strength": 0.45, "emission_color": skin, "base_glow": 0.15
+	_add_mesh(root, _box(Vector3(0.48, 0.38, 0.1)), Vector3(0, 1.45, -0.3), skin, {
+		"outline_width": 0.03, "emission_strength": 0.35, "emission_color": skin, "base_glow": 0.1
 	})
-	# Soft cheek blush
-	_add_mesh(root, _sphere(0.07), Vector3(-0.22, 1.38, -0.34), Color(1.0, 0.55, 0.6), {
-		"outline_width": 0.0, "emission_strength": 0.35, "emission_color": Color(1.0, 0.55, 0.6)
-	})
-	_add_mesh(root, _sphere(0.07), Vector3(0.22, 1.38, -0.34), Color(1.0, 0.55, 0.6), {
-		"outline_width": 0.0, "emission_strength": 0.35, "emission_color": Color(1.0, 0.55, 0.6)
-	})
-	# Small mouth
-	_add_mesh(root, _box(Vector3(0.1, 0.035, 0.04)), Vector3(0, 1.28, -0.36), Color(0.85, 0.25, 0.35), {
-		"outline_width": 0.0, "emission_strength": 0.25, "emission_color": Color(0.85, 0.25, 0.35)
-	})
-
-	# Oversized anime eyes facing -Z
+	# Eyes
 	for side in [-1.0, 1.0]:
 		var eye := Node3D.new()
-		eye.position = Vector3(side * 0.16, 1.5, -0.36)
+		eye.position = Vector3(side * 0.15, 1.48, -0.34)
 		root.add_child(eye)
-		_add_mesh(eye, _sphere(0.14), Vector3.ZERO, StyleKit.PALETTE["eye_white"], {
-			"outline_width": 0.018, "emission_strength": 0.5, "emission_color": Color(1, 1, 1)
+		_add_mesh(eye, _sphere(0.13), Vector3.ZERO, StyleKit.PALETTE["eye_white"], {
+			"outline_width": 0.02, "emission_strength": 0.45, "emission_color": Color(1, 1, 1)
 		}).scale = Vector3(0.85, 1.15, 0.7)
-		_add_mesh(eye, _sphere(0.085), Vector3(0, -0.01, -0.07), iris, {
-			"outline_width": 0.0, "emission_strength": 0.7, "emission_color": iris
-		})
-		_add_mesh(eye, _sphere(0.04), Vector3(0, -0.015, -0.11), StyleKit.PALETTE["eye_pupil"], {
-			"outline_width": 0.0
-		})
-		# Eye highlight
-		_add_mesh(eye, _sphere(0.028), Vector3(side * -0.03, 0.035, -0.1), Color(1, 1, 1), {
-			"outline_width": 0.0, "emission_strength": 1.2, "emission_color": Color(1, 1, 1)
-		})
-
-	# --- Hair (main feature): huge crimson volume ---
-	# Crown / top dome
-	_add_mesh(root, _sphere(0.46), Vector3(0, 1.78, 0.02), hair, {
-		"outline_width": 0.055, "rim_amount": 0.6, "emission_strength": 0.95, "emission_color": hair, "base_glow": 0.3
-	})
-	# Forehead bangs (front fringe, readable from 3/4)
-	_add_mesh(root, _sphere(0.18), Vector3(-0.12, 1.72, -0.28), hair, {
-		"outline_width": 0.03, "emission_strength": 0.9, "emission_color": hair
-	})
-	_add_mesh(root, _sphere(0.18), Vector3(0.12, 1.72, -0.28), hair, {
-		"outline_width": 0.03, "emission_strength": 0.9, "emission_color": hair
-	})
-	_add_mesh(root, _sphere(0.14), Vector3(0, 1.62, -0.34), hair_hi, {
-		"outline_width": 0.02, "emission_strength": 1.0, "emission_color": hair_hi
-	})
-	# Side bangs / cheek curtain
-	_add_mesh(root, _sphere(0.2), Vector3(-0.4, 1.5, -0.05), hair, {
-		"outline_width": 0.03, "emission_strength": 0.85, "emission_color": hair
-	})
-	_add_mesh(root, _sphere(0.2), Vector3(0.4, 1.5, -0.05), hair, {
-		"outline_width": 0.03, "emission_strength": 0.85, "emission_color": hair
-	})
-	_add_mesh(root, _sphere(0.16), Vector3(-0.42, 1.28, 0.0), hair_dark, {
-		"outline_width": 0.025, "emission_strength": 0.7, "emission_color": hair_dark
-	})
-	_add_mesh(root, _sphere(0.16), Vector3(0.42, 1.28, 0.0), hair_dark, {
-		"outline_width": 0.025, "emission_strength": 0.7, "emission_color": hair_dark
-	})
-
-	# Massive rear hair volume (chase cam sits on +Z looking -Z)
-	_add_mesh(root, _sphere(0.58), Vector3(0, 1.55, 0.42), hair, {
-		"outline_width": 0.06, "emission_strength": 1.15, "emission_color": hair, "base_glow": 0.35
-	})
-	_add_mesh(root, _sphere(0.42), Vector3(0, 1.25, 0.55), hair_dark, {
-		"outline_width": 0.05, "emission_strength": 0.95, "emission_color": hair_dark, "base_glow": 0.25
-	})
-	_add_mesh(root, _box(Vector3(0.7, 0.85, 0.35)), Vector3(0, 1.2, 0.5), hair, {
-		"outline_width": 0.045, "emission_strength": 1.0, "emission_color": hair
-	})
-	# Long flowing back ribbons / twin tails
-	for side in [-1.0, 1.0]:
-		_add_mesh(root, _sphere(0.22), Vector3(side * 0.32, 1.15, 0.62), hair, {
-			"outline_width": 0.035, "emission_strength": 1.05, "emission_color": hair
-		})
-		_add_mesh(root, _capsule(0.12, 0.7), Vector3(side * 0.38, 0.75, 0.58), hair, {
-			"outline_width": 0.03, "emission_strength": 0.95, "emission_color": hair
-		}).rotation_degrees = Vector3(18.0, 0.0, side * -12.0)
-		_add_mesh(root, _capsule(0.1, 0.55), Vector3(side * 0.45, 0.4, 0.52), hair_dark, {
-			"outline_width": 0.025, "emission_strength": 0.85, "emission_color": hair_dark
-		}).rotation_degrees = Vector3(22.0, 0.0, side * -18.0)
-		# Tip sparkle accent
-		_add_mesh(root, _sphere(0.1), Vector3(side * 0.5, 0.18, 0.48), hair_hi, {
-			"outline_width": 0.02, "emission_strength": 1.2, "emission_color": hair_hi
-		})
-	# Extra mid-back cascade for silhouette thickness
-	_add_mesh(root, _capsule(0.18, 0.9), Vector3(0, 0.85, 0.65), hair, {
-		"outline_width": 0.04, "emission_strength": 1.0, "emission_color": hair
-	}).rotation_degrees = Vector3(25.0, 0.0, 0.0)
-	_add_mesh(root, _sphere(0.2), Vector3(0, 0.45, 0.72), hair_dark, {
-		"outline_width": 0.03, "emission_strength": 0.9, "emission_color": hair_dark
-	})
-
-	# --- Body: jacket torso + skirt flare ---
-	_add_mesh(root, _box(Vector3(0.55, 0.55, 0.32)), Vector3(0, 1.05, 0.02), outfit, {
-		"outline_width": 0.04, "emission_strength": 0.2, "emission_color": outfit, "base_glow": 0.12
-	})
-	# Chest accent stripe (pink)
-	_add_mesh(root, _box(Vector3(0.2, 0.45, 0.34)), Vector3(0, 1.05, -0.01), skirt_col, {
-		"outline_width": 0.02, "emission_strength": 0.55, "emission_color": skirt_col
-	})
-	# Collar
-	_add_mesh(root, _box(Vector3(0.5, 0.1, 0.28)), Vector3(0, 1.32, 0.0), black, {
-		"outline_width": 0.02, "emission_strength": 0.15, "emission_color": black
-	})
-	# Skirt flare (reads as anime girl from behind)
-	_add_mesh(root, _box(Vector3(0.72, 0.28, 0.42)), Vector3(0, 0.72, 0.05), skirt_col, {
-		"outline_width": 0.04, "emission_strength": 0.5, "emission_color": skirt_col, "base_glow": 0.15
-	})
-	_add_mesh(root, _box(Vector3(0.85, 0.12, 0.5)), Vector3(0, 0.58, 0.08), hair, {
-		"outline_width": 0.03, "emission_strength": 0.7, "emission_color": hair
-	})
-
-	# Arms (slightly forward for riding pose)
-	for side in [-1.0, 1.0]:
-		_add_mesh(root, _capsule(0.09, 0.45), Vector3(side * 0.42, 1.05, -0.12), outfit, {
-			"outline_width": 0.025, "emission_strength": 0.18, "emission_color": outfit
-		}).rotation_degrees = Vector3(55.0, 0.0, side * 25.0)
-		_add_mesh(root, _sphere(0.09), Vector3(side * 0.48, 0.85, -0.28), skin, {
-			"outline_width": 0.02, "emission_strength": 0.25, "emission_color": skin
-		})
-
-	# Legs / boots on bike
-	for side in [-1.0, 1.0]:
-		_add_mesh(root, _capsule(0.1, 0.4), Vector3(side * 0.16, 0.42, 0.05), black, {
-			"outline_width": 0.025, "emission_strength": 0.15, "emission_color": black
-		}).rotation_degrees = Vector3(70.0, 0.0, side * 8.0)
-		_add_mesh(root, _box(Vector3(0.16, 0.12, 0.28)), Vector3(side * 0.18, 0.22, -0.12), black, {
-			"outline_width": 0.02, "emission_strength": 0.2, "emission_color": black
-		})
-
-	_build_bike(root, bike, bike_accent, true)
-
-func _build_jax(root: Node3D, skin: Color, hair: Color, hair_dark: Color, bike: Color, bike_accent: Color, iris: Color) -> void:
-	# Simpler but still readable boy silhouette — not broken.
-	_add_mesh(root, _capsule(0.38, 1.15), Vector3(0, 0.95, 0), skin, {
-		"outline_width": 0.04, "emission_strength": 0.3, "emission_color": skin, "base_glow": 0.2
-	})
-	_add_mesh(root, _box(Vector3(0.5, 0.4, 0.1)), Vector3(0, 1.35, -0.28), skin, {
-		"outline_width": 0.025, "emission_strength": 0.4, "emission_color": skin
-	})
-	for side in [-1.0, 1.0]:
-		var eye := Node3D.new()
-		eye.position = Vector3(side * 0.18, 1.35, -0.34)
-		root.add_child(eye)
-		_add_mesh(eye, _sphere(0.12), Vector3.ZERO, StyleKit.PALETTE["eye_white"], {
-			"outline_width": 0.015, "emission_strength": 0.4, "emission_color": Color(1, 1, 1)
-		})
-		_add_mesh(eye, _sphere(0.07), Vector3(0, -0.01, -0.07), iris, {
-			"outline_width": 0.0, "emission_strength": 0.55, "emission_color": iris
+		_add_mesh(eye, _sphere(0.08), Vector3(0, -0.01, -0.07), iris, {
+			"outline_width": 0.0, "emission_strength": 0.65, "emission_color": iris
 		})
 		_add_mesh(eye, _sphere(0.035), Vector3(0, -0.012, -0.1), StyleKit.PALETTE["eye_pupil"], {
 			"outline_width": 0.0
 		})
-	# Cyan hair mass + spikes
-	_add_mesh(root, _sphere(0.42), Vector3(0, 1.55, 0.05), hair, {
-		"outline_width": 0.045, "emission_strength": 0.7, "emission_color": hair, "base_glow": 0.2
+
+	# Crimson hair mass — chunky silhouette, not micro-detail
+	_add_mesh(root, _sphere(0.44), Vector3(0, 1.72, 0.02), hair, {
+		"outline_width": 0.06, "emission_strength": 0.85, "emission_color": hair, "base_glow": 0.25
 	})
-	_add_mesh(root, _sphere(0.48), Vector3(0, 1.4, 0.38), hair, {
-		"outline_width": 0.05, "emission_strength": 0.85, "emission_color": hair
-	})
-	_add_mesh(root, _box(Vector3(0.22, 0.42, 0.2)), Vector3(-0.2, 1.82, 0.05), hair, {
-		"outline_width": 0.02, "emission_strength": 0.6, "emission_color": hair
-	})
-	_add_mesh(root, _box(Vector3(0.22, 0.48, 0.2)), Vector3(0.18, 1.88, 0.1), hair_dark, {
-		"outline_width": 0.02, "emission_strength": 0.6, "emission_color": hair_dark
-	})
-	_add_mesh(root, _box(Vector3(0.35, 0.55, 0.25)), Vector3(0, 1.55, 0.5), hair, {
+	_add_mesh(root, _sphere(0.16), Vector3(-0.14, 1.68, -0.26), hair, {
 		"outline_width": 0.03, "emission_strength": 0.8, "emission_color": hair
 	})
-	# Jacket torso hint
-	_add_mesh(root, _box(Vector3(0.55, 0.5, 0.3)), Vector3(0, 0.95, 0.02), Color(0.1, 0.25, 0.4), {
+	_add_mesh(root, _sphere(0.16), Vector3(0.14, 1.68, -0.26), hair, {
+		"outline_width": 0.03, "emission_strength": 0.8, "emission_color": hair
+	})
+	_add_mesh(root, _sphere(0.18), Vector3(-0.38, 1.45, 0.0), hair, {
+		"outline_width": 0.03, "emission_strength": 0.75, "emission_color": hair
+	})
+	_add_mesh(root, _sphere(0.18), Vector3(0.38, 1.45, 0.0), hair, {
+		"outline_width": 0.03, "emission_strength": 0.75, "emission_color": hair
+	})
+	# Rear volume + twin tails
+	_add_mesh(root, _sphere(0.52), Vector3(0, 1.48, 0.4), hair, {
+		"outline_width": 0.06, "emission_strength": 1.0, "emission_color": hair, "base_glow": 0.3
+	})
+	_add_mesh(root, _sphere(0.36), Vector3(0, 1.15, 0.52), hair_dark, {
+		"outline_width": 0.045, "emission_strength": 0.85, "emission_color": hair_dark
+	})
+	for side in [-1.0, 1.0]:
+		_add_mesh(root, _capsule(0.11, 0.65), Vector3(side * 0.36, 0.7, 0.55), hair, {
+			"outline_width": 0.03, "emission_strength": 0.9, "emission_color": hair
+		}).rotation_degrees = Vector3(18.0, 0.0, side * -14.0)
+		_add_mesh(root, _sphere(0.1), Vector3(side * 0.48, 0.22, 0.48), hair_hi, {
+			"outline_width": 0.02, "emission_strength": 1.1, "emission_color": hair_hi
+		})
+
+	# Body
+	_add_mesh(root, _box(Vector3(0.52, 0.5, 0.3)), Vector3(0, 1.02, 0.02), outfit, {
+		"outline_width": 0.04, "emission_strength": 0.15, "emission_color": outfit, "base_glow": 0.1
+	})
+	_add_mesh(root, _box(Vector3(0.18, 0.42, 0.32)), Vector3(0, 1.02, -0.01), skirt_col, {
+		"outline_width": 0.02, "emission_strength": 0.5, "emission_color": skirt_col
+	})
+	_add_mesh(root, _box(Vector3(0.68, 0.26, 0.4)), Vector3(0, 0.7, 0.05), skirt_col, {
+		"outline_width": 0.04, "emission_strength": 0.45, "emission_color": skirt_col, "base_glow": 0.12
+	})
+	for side in [-1.0, 1.0]:
+		_add_mesh(root, _capsule(0.085, 0.4), Vector3(side * 0.4, 1.02, -0.1), outfit, {
+			"outline_width": 0.025, "emission_strength": 0.15, "emission_color": outfit
+		}).rotation_degrees = Vector3(55.0, 0.0, side * 25.0)
+		_add_mesh(root, _capsule(0.09, 0.36), Vector3(side * 0.15, 0.4, 0.05), black, {
+			"outline_width": 0.025, "emission_strength": 0.12, "emission_color": black
+		}).rotation_degrees = Vector3(70.0, 0.0, side * 8.0)
+
+	_build_bike(root, bike, bike_accent, true)
+
+func _build_jax(root: Node3D, skin: Color, hair: Color, hair_dark: Color, bike: Color, bike_accent: Color, iris: Color) -> void:
+	_add_mesh(root, _capsule(0.36, 1.1), Vector3(0, 0.92, 0), skin, {
+		"outline_width": 0.04, "emission_strength": 0.25, "emission_color": skin, "base_glow": 0.15
+	})
+	_add_mesh(root, _box(Vector3(0.48, 0.38, 0.1)), Vector3(0, 1.32, -0.28), skin, {
+		"outline_width": 0.025, "emission_strength": 0.35, "emission_color": skin
+	})
+	for side in [-1.0, 1.0]:
+		var eye := Node3D.new()
+		eye.position = Vector3(side * 0.17, 1.32, -0.32)
+		root.add_child(eye)
+		_add_mesh(eye, _sphere(0.11), Vector3.ZERO, StyleKit.PALETTE["eye_white"], {
+			"outline_width": 0.015, "emission_strength": 0.4, "emission_color": Color(1, 1, 1)
+		})
+		_add_mesh(eye, _sphere(0.065), Vector3(0, -0.01, -0.07), iris, {
+			"outline_width": 0.0, "emission_strength": 0.55, "emission_color": iris
+		})
+	_add_mesh(root, _sphere(0.4), Vector3(0, 1.52, 0.05), hair, {
+		"outline_width": 0.05, "emission_strength": 0.7, "emission_color": hair, "base_glow": 0.2
+	})
+	_add_mesh(root, _sphere(0.44), Vector3(0, 1.35, 0.36), hair, {
+		"outline_width": 0.05, "emission_strength": 0.8, "emission_color": hair
+	})
+	_add_mesh(root, _box(Vector3(0.2, 0.4, 0.18)), Vector3(-0.18, 1.78, 0.05), hair, {
+		"outline_width": 0.02, "emission_strength": 0.55, "emission_color": hair
+	})
+	_add_mesh(root, _box(Vector3(0.2, 0.46, 0.18)), Vector3(0.16, 1.84, 0.08), hair_dark, {
+		"outline_width": 0.02, "emission_strength": 0.55, "emission_color": hair_dark
+	})
+	_add_mesh(root, _box(Vector3(0.52, 0.48, 0.28)), Vector3(0, 0.92, 0.02), Color(0.1, 0.25, 0.4), {
 		"outline_width": 0.035, "emission_strength": 0.25, "emission_color": Color(0.1, 0.35, 0.55)
 	})
 	_build_bike(root, bike, bike_accent, false)
 
 func _build_bike(root: Node3D, bike: Color, bike_accent: Color, is_maya: bool) -> void:
-	var bike_root := Node3D.new()
+	bike_root = Node3D.new()
 	bike_root.name = "Bike"
 	bike_root.position = Vector3(0, 0.1, 0.12)
 	root.add_child(bike_root)
-	# Sleek chunky scooter body
-	_add_mesh(bike_root, _box(Vector3(0.9, 0.38, 1.65)), Vector3(0, 0.36, 0), bike, {
-		"outline_width": 0.045, "rim_amount": 0.5, "emission_strength": 0.65, "emission_color": bike, "base_glow": 0.22
+	_add_mesh(bike_root, _box(Vector3(0.85, 0.36, 1.55)), Vector3(0, 0.34, 0), bike, {
+		"outline_width": 0.05, "emission_strength": 0.55, "emission_color": bike, "base_glow": 0.18
 	})
-	# Front fairing / nose
-	_add_mesh(bike_root, _box(Vector3(0.95, 0.28, 0.55)), Vector3(0, 0.55, -0.45), bike_accent, {
-		"outline_width": 0.035, "emission_strength": 0.9, "emission_color": bike_accent
+	_add_mesh(bike_root, _box(Vector3(0.9, 0.26, 0.5)), Vector3(0, 0.52, -0.42), bike_accent, {
+		"outline_width": 0.035, "emission_strength": 0.85, "emission_color": bike_accent
 	})
-	# Handlebar
-	_add_mesh(bike_root, _box(Vector3(0.85, 0.08, 0.08)), Vector3(0, 0.78, -0.35), Color(0.1, 0.08, 0.12), {
-		"outline_width": 0.02, "emission_strength": 0.15, "emission_color": Color(0.2, 0.15, 0.25)
+	_add_mesh(bike_root, _box(Vector3(0.8, 0.08, 0.08)), Vector3(0, 0.74, -0.32), Color(0.1, 0.08, 0.12), {
+		"outline_width": 0.02, "emission_strength": 0.12, "emission_color": Color(0.2, 0.15, 0.25)
 	})
-	# Rear fender / seat
-	_add_mesh(bike_root, _box(Vector3(0.78, 0.26, 0.5)), Vector3(0, 0.48, 0.58), bike_accent, {
-		"outline_width": 0.03, "emission_strength": 0.95, "emission_color": bike_accent
+	_add_mesh(bike_root, _box(Vector3(0.72, 0.24, 0.46)), Vector3(0, 0.46, 0.55), bike_accent, {
+		"outline_width": 0.03, "emission_strength": 0.9, "emission_color": bike_accent
 	})
-	# Side panels
 	for side in [-1.0, 1.0]:
 		var panel_col := Color(0.08, 0.06, 0.1) if is_maya else Color(0.05, 0.2, 0.3)
-		_add_mesh(bike_root, _box(Vector3(0.08, 0.28, 1.1)), Vector3(side * 0.48, 0.38, 0.05), panel_col, {
-			"outline_width": 0.02, "emission_strength": 0.2, "emission_color": panel_col
+		_add_mesh(bike_root, _box(Vector3(0.08, 0.26, 1.0)), Vector3(side * 0.46, 0.36, 0.05), panel_col, {
+			"outline_width": 0.02, "emission_strength": 0.18, "emission_color": panel_col
 		})
-	# Wheels
-	for wz in [-0.58, 0.62]:
-		_add_mesh(bike_root, _cylinder(0.38, 0.16), Vector3(0, 0.34, wz), Color(0.1, 0.08, 0.14), {
-			"outline_width": 0.028, "emission_strength": 0.2, "emission_color": Color(0.35, 0.2, 0.4)
+	# Wheels as spin hubs (rotate local X while rolling along -Z)
+	wheel_nodes.clear()
+	for wz in [-0.55, 0.58]:
+		var hub := Node3D.new()
+		hub.name = "Wheel"
+		hub.position = Vector3(0, 0.32, wz)
+		bike_root.add_child(hub)
+		_add_mesh(hub, _cylinder(WHEEL_RADIUS, 0.15), Vector3.ZERO, Color(0.12, 0.1, 0.16), {
+			"outline_width": 0.03, "emission_strength": 0.18, "emission_color": Color(0.35, 0.2, 0.4)
 		}).rotation_degrees.z = 90.0
-		# Hub glow
-		_add_mesh(bike_root, _cylinder(0.14, 0.18), Vector3(0, 0.34, wz), bike_accent, {
-			"outline_width": 0.0, "emission_strength": 1.1, "emission_color": bike_accent
+		_add_mesh(hub, _cylinder(0.13, 0.17), Vector3.ZERO, bike_accent, {
+			"outline_width": 0.0, "emission_strength": 1.0, "emission_color": bike_accent
 		}).rotation_degrees.z = 90.0
-	# Neon underglow strip
+		# Spoke mark so spin reads
+		_add_mesh(hub, _box(Vector3(0.04, WHEEL_RADIUS * 1.6, 0.04)), Vector3.ZERO, Color(0.85, 0.85, 0.9), {
+			"outline_width": 0.0, "emission_strength": 0.3, "emission_color": Color(0.85, 0.85, 0.9)
+		})
+		wheel_nodes.append(hub)
 	var neon: Color = StyleKit.PALETTE["neon"] if not is_maya else Color(1.0, 0.35, 0.55)
-	_add_mesh(bike_root, _box(Vector3(0.2, 0.08, 1.3)), Vector3(0, 0.18, 0), neon, {
-		"outline_width": 0.0, "emission_strength": 2.4, "emission_color": neon, "rim_amount": 0.0
+	_add_mesh(bike_root, _box(Vector3(0.18, 0.07, 1.2)), Vector3(0, 0.16, 0), neon, {
+		"outline_width": 0.0, "emission_strength": 2.2, "emission_color": neon, "rim_amount": 0.0
 	})
 
 func _add_mesh(parent: Node3D, mesh: Mesh, pos: Vector3, color: Color, opts: Dictionary = {}) -> MeshInstance3D:
@@ -308,8 +256,8 @@ func _sphere(radius: float) -> SphereMesh:
 	var m := SphereMesh.new()
 	m.radius = radius
 	m.height = radius * 2.0
-	m.radial_segments = 12
-	m.rings = 8
+	m.radial_segments = 10
+	m.rings = 6
 	return m
 
 func _box(size: Vector3) -> BoxMesh:
@@ -322,14 +270,13 @@ func _cylinder(radius: float, height: float) -> CylinderMesh:
 	m.top_radius = radius
 	m.bottom_radius = radius
 	m.height = height
-	m.radial_segments = 12
+	m.radial_segments = 10
 	return m
 
 func _setup_particles() -> void:
 	speed_particles = _make_particle_node("SpeedLines", Color(0.7, 0.95, 1.0, 0.7), 24, 0.35)
 	speed_particles.position = Vector3(0, 0.8, 1.2)
 	speed_particles.emitting = false
-	# Stretch along Z for speed lines
 	var speed_mat := ParticleProcessMaterial.new()
 	speed_mat.direction = Vector3(0, 0, 1)
 	speed_mat.spread = 12.0
@@ -404,7 +351,7 @@ func _physics_process(delta: float) -> void:
 	# Forward movement (world -Z)
 	velocity.z = -current_speed
 
-	# Lane switching
+	# Snappy lane switching
 	var target_x := target_lane * LANE_WIDTH
 	velocity.x = (target_x - global_position.x) * LANE_SWITCH_SPEED
 
@@ -419,13 +366,15 @@ func _physics_process(delta: float) -> void:
 
 	# Land squash
 	if on_floor and not _was_on_floor:
-		_play_squash(Vector3(1.25, 0.7, 1.25), 0.12)
+		_jump_stretch = 0.0
+		_play_squash(Vector3(1.3, 0.65, 1.3), 0.1)
 	_was_on_floor = on_floor
 
 	if (Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("ui_up")) and is_on_floor() and not is_sliding:
 		velocity.y = JUMP_FORCE
 		is_jumping = true
-		_play_squash(Vector3(0.85, 1.25, 0.85), 0.1)
+		_jump_stretch = 1.0
+		_play_squash(Vector3(0.78, 1.35, 0.78), 0.08)
 
 	var lane_changed := false
 	if Input.is_action_just_pressed("ui_left"):
@@ -444,9 +393,43 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	# Speed-line wind trail at high speed
 	if speed_particles:
 		speed_particles.emitting = current_speed >= SPEED_LINE_THRESHOLD
+
+func _process(delta: float) -> void:
+	if visual_root == null or GameManager.is_game_over:
+		return
+	_anim_time += delta
+	_update_ride_anim(delta)
+
+func _update_ride_anim(delta: float) -> void:
+	# Target lean toward destination lane
+	var target_x := float(target_lane) * LANE_WIDTH
+	var dx := target_x - global_position.x
+	var lean_target := clampf(-dx * 6.0, -LEAN_MAX_DEG, LEAN_MAX_DEG)
+	if is_sliding:
+		lean_target *= 0.35
+	_lean_z = lerpf(_lean_z, lean_target, clampf(LEAN_LERP * delta, 0.0, 1.0))
+
+	# Idle bob + slight pitch (suppressed in air / slide)
+	var bob := 0.0
+	var pitch := 0.0
+	if is_on_floor() and not is_sliding:
+		bob = sin(_anim_time * IDLE_BOB_SPEED) * IDLE_BOB_AMP
+		pitch = sin(_anim_time * IDLE_BOB_SPEED) * 3.5
+	elif is_jumping or not is_on_floor():
+		# Hang: slight nose-up, decay stretch flag
+		pitch = -8.0
+		_jump_stretch = maxf(0.0, _jump_stretch - delta * 2.5)
+
+	visual_root.position.y = bob
+	visual_root.rotation_degrees = Vector3(pitch, 0.0, _lean_z)
+
+	# Wheel spin ∝ speed (rad/s = v / r); local X while tire faces sideways
+	var spin_rad := (current_speed / WHEEL_RADIUS) * delta
+	for w in wheel_nodes:
+		if is_instance_valid(w):
+			w.rotate_x(spin_rad)
 
 func _play_squash(scale_to: Vector3, duration: float) -> void:
 	if visual_root == null:
@@ -455,8 +438,8 @@ func _play_squash(scale_to: Vector3, duration: float) -> void:
 		_squash_tween.kill()
 	var base := Vector3(VISUAL_SCALE, VISUAL_SCALE, VISUAL_SCALE)
 	_squash_tween = create_tween()
-	_squash_tween.tween_property(visual_root, "scale", scale_to * VISUAL_SCALE, duration * 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	_squash_tween.tween_property(visual_root, "scale", base, duration * 0.55).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
+	_squash_tween.tween_property(visual_root, "scale", scale_to * VISUAL_SCALE, duration * 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_squash_tween.tween_property(visual_root, "scale", base, duration * 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _burst_dust() -> void:
 	if dust_particles == null:
@@ -502,7 +485,7 @@ func apply_boost() -> void:
 	if GameManager.is_game_over:
 		return
 	current_speed = BOOST_SPEED
-	_play_squash(Vector3(0.7, 1.4, 0.7), 0.18)
+	_play_squash(Vector3(0.7, 1.4, 0.7), 0.15)
 	_burst_dust()
 	await get_tree().create_timer(3.0).timeout
 	if not GameManager.is_game_over:
