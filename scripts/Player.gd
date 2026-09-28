@@ -671,7 +671,8 @@ func _start_slide() -> void:
 		collision_shape.scale.y = 0.5
 		collision_shape.position.y = -0.25
 	if visual_root:
-		visual_root.scale = Vector3(1.15, 0.55, 1.15) * VISUAL_SCALE
+		# Deep crouch. The 3 m card at 0.55 still filled the gap under the bar.
+		visual_root.scale = Vector3(1.25, 0.34, 1.25) * VISUAL_SCALE
 	elif mesh_instance:
 		mesh_instance.scale.y = 0.5
 	await get_tree().create_timer(0.8).timeout
@@ -751,6 +752,10 @@ func apply_boost() -> void:
 	_boost_timer = BOOST_DURATION
 	_speed_penalty = 0.0
 	is_boosting = true
+	# Surge ends the chase. The pursuer leaves; a later hit can call it back.
+	var chaser := get_tree().root.find_child("Chaser", true, false)
+	if chaser and chaser.has_method("disengage"):
+		chaser.disengage()
 	_sfx("boost")
 	score += BOOST_POINTS
 	combo = max(combo, 1)
