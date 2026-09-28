@@ -1,17 +1,15 @@
 extends CharacterBody3D
 
 ## The chase camera sits ~8.5 m behind the rider (Player._setup_camera).
-## The chaser stays offstage until the first obstacle hit. It then appears
-## in the band between rider and camera, small and off the rider's right.
-## A single stumble must not cover that whole lead — only a real catch ends the run.
+## The chaser is hidden and far behind that lens until an obstacle hit.
+## A boost does not merely open the gap: it ends the chase and the pursuer leaves.
+## Another hit can bring them back. A single stumble cannot close the lead.
 const START_GAP := 4.35
 const CATCH_GAP := 1.55
 const WARN_GAP := 4.35
 ## Seconds of engaged riding to ease from START_GAP down toward PRESS_GAP.
-## A hit pulls tighter than that; a boost opens back to START_GAP.
 const CLOSE_SECONDS := 36.0
 const PRESS_GAP := 3.05
-const BOOST_PULL := 8.0
 const PURSUIT_ACCEL := 6.0
 ## How fast the chaser gains while the rider is slowed. Capped so the
 ## appearance-on-hit lunge stays short of CATCH_GAP.
@@ -19,8 +17,9 @@ const HIT_SQUEEZE_CAP := 0.62
 const HIT_SQUEEZE_PER_DEFICIT := 0.08
 const SIDE_FAR := 2.2
 const SIDE_NEAR := 1.15
-## Parked well behind the chase camera until the first hit. The lens is at ~8.5 m.
-const DORMANT_GAP := 32.0
+## Parked far behind and beside the chase camera. The lens is at ~8.5 m.
+const DORMANT_GAP := 48.0
+const DORMANT_X := 26.0
 ## Meters kept between the camera and the chaser's nearest (+Z) point.
 const CAMERA_CLEARANCE := 3.45
 const BACK_EXTENT := 0.62
@@ -33,9 +32,7 @@ var _anim_t := 0.0
 var _danger := 0.0 ## 0..1 for UI vignette
 ## Tracks cruise speed, never the boost surge, so the gap can open.
 var _pursuit := 15.0
-## Set once the chaser has pressed in, so a boost escape can flash once.
-var _escape_ready := false
-## False until the first obstacle hit. The opening is an empty road.
+## False while the pursuer is off the road. A hit sets it; a boost clears it.
 var engaged := false
 
 func _ready() -> void:
@@ -43,27 +40,51 @@ func _ready() -> void:
 	_apply_toon_look()
 	_park_offstage()
 
+func _set_drawn(draw: bool) -> void:
+	visible = draw
+	if _visual:
+		_visual.visible = draw
+	var placeholder := get_node_or_null("Mesh")
+	if placeholder:
+		placeholder.visible = false
+
 func _park_offstage() -> void:
-	visible = false
+	_set_drawn(false)
+	_danger = 0.0
 	if player == null or not is_instance_valid(player):
 		return
 	global_position = Vector3(
-		player.global_position.x + SIDE_FAR,
+		player.global_position.x + DORMANT_X,
 		player.global_position.y,
 		player.global_position.z + DORMANT_GAP
 	)
+	velocity = Vector3.ZERO
 
-## First obstacle hit. Later hits do not teleport the lead back open.
+## Obstacle hit while the pursuer is away. An in-progress chase is not reset.
 func engage() -> void:
 	if engaged or GameManager.is_game_over:
 		return
 	engaged = true
 	_run_time = 0.0
-	_escape_ready = false
-	visible = true
-	if "cruise_speed" in player:
+	_set_drawn(true)
+	if player and "cruise_speed" in player:
 		_pursuit = float(player.cruise_speed)
 	_snap_to_gap(START_GAP)
+
+## Boost escape. The chaser leaves the screen; it does not sit a little farther back.
+func disengage() -> void:
+	if not engaged or GameManager.is_game_over:
+		return
+	engaged = false
+	_park_offstage()
+	var ui := get_tree().root.find_child("UI", true, false)
+	if ui and ui.has_method("set_danger_level"):
+		ui.set_danger_level(0.0)
+	if ui and ui.has_method("popup_points"):
+		ui.popup_points("AWAY!", Color(0.45, 1.0, 0.95))
+	var ga := get_node_or_null("/root/GameAudio")
+	if ga and ga.has_method("set_danger_energy"):
+		ga.set_danger_energy(0.0)
 
 func _snap_to_gap(gap: float) -> void:
 	if player == null or not is_instance_valid(player):
@@ -135,15 +156,16 @@ func _physics_process(delta: float) -> void:
 		player = get_tree().root.find_child("Player", true, false)
 		return
 
-	if not engaged:
-		_park_offstage()
-		_danger = 0.0
-		var idle_ui := get_tree().root.find_child("UI", true, false)
-		if idle_ui and idle_ui.has_method("set_danger_level"):
-			idle_ui.set_danger_level(0.0)
-		var idle_audio := get_node_or_null("/root/GameAudio")
-		if idle_audio and idle_audio.has_method("set_danger_energy"):
-			idle_audio.set_danger_energy(0.0)
+	var boosting := false
+	if "is_boosting" in player:
+		boosting = bool(player.is_boosting)
+	# A pickup ends the chase outright. Do this before any pursuit step so the
+	# body cannot spend a frame creeping back into the lens.
+	if not engaged or boosting:
+		if engaged and boosting:
+			disengage()
+		else:
+			_park_offstage()
 		return
 
 	_run_time += delta
@@ -151,13 +173,10 @@ func _physics_process(delta: float) -> void:
 
 	var player_speed := 15.0
 	var cruise := 15.0
-	var boosting := false
 	if "current_speed" in player:
 		player_speed = float(player.current_speed)
 	if "cruise_speed" in player:
 		cruise = float(player.cruise_speed)
-	if "is_boosting" in player:
-		boosting = bool(player.is_boosting)
 
 	# Recomputed every frame from the live speed. Do not remember a
 	# boost-relative chase speed or the chaser lunges the moment the surge ends.
@@ -172,22 +191,17 @@ func _physics_process(delta: float) -> void:
 	var healthy_t := clampf(_run_time / CLOSE_SECONDS, 0.0, 1.0)
 	var desired := lerpf(START_GAP, PRESS_GAP, healthy_t)
 	var chase := player_speed
-	if boosting and gap < START_GAP - 0.08:
-		chase = maxf(player_speed - BOOST_PULL, 0.0)
-	elif boosting:
-		chase = player_speed
+	var deficit := maxf(0.0, cruise - player_speed)
+	var squeeze := minf(HIT_SQUEEZE_CAP, deficit * HIT_SQUEEZE_PER_DEFICIT)
+	if deficit > 2.0:
+		var extra := minf(0.08, maxf(0.0, (gap - desired) * 0.05))
+		chase = player_speed + squeeze + extra
 	else:
-		var deficit := maxf(0.0, cruise - player_speed)
-		var squeeze := minf(HIT_SQUEEZE_CAP, deficit * HIT_SQUEEZE_PER_DEFICIT)
-		if deficit > 2.0:
-			var extra := minf(0.08, maxf(0.0, (gap - desired) * 0.05))
-			chase = player_speed + squeeze + extra
-		else:
-			var gap_err := gap - desired
-			var rel := clampf(gap_err * 1.15, -1.4, 1.8)
-			chase = _pursuit + rel
-			if player_speed < cruise - 0.4:
-				chase = minf(chase, player_speed + squeeze + 0.35)
+		var gap_err := gap - desired
+		var rel := clampf(gap_err * 1.15, -1.4, 1.8)
+		chase = _pursuit + rel
+		if player_speed < cruise - 0.4:
+			chase = minf(chase, player_speed + squeeze + 0.35)
 	velocity.z = -chase
 	var side := lerpf(SIDE_FAR, SIDE_NEAR, _danger)
 	var desired_x := player.global_position.x + side
@@ -202,12 +216,6 @@ func _physics_process(delta: float) -> void:
 	var ui = get_tree().root.find_child("UI", true, false)
 	if ui and ui.has_method("set_danger_level"):
 		ui.set_danger_level(_danger)
-	if gap < PRESS_GAP + 0.45:
-		_escape_ready = true
-	elif _escape_ready and boosting and gap >= START_GAP - 0.2:
-		_escape_ready = false
-		if ui and ui.has_method("popup_points"):
-			ui.popup_points("AWAY!", Color(0.45, 1.0, 0.95))
 	var ga := get_node_or_null("/root/GameAudio")
 	if ga and ga.has_method("set_danger_energy"):
 		ga.set_danger_energy(_danger)
@@ -229,6 +237,9 @@ func _keep_in_frame() -> void:
 
 func _process(_delta: float) -> void:
 	if _visual == null:
+		return
+	if not engaged:
+		_set_drawn(false)
 		return
 	# Small bob only. The old 6% danger pulse sat on a body already
 	# large enough to cover the rider.

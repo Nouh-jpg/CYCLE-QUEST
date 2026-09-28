@@ -72,7 +72,6 @@ func _test_slide(main: Node, player: CharacterBody3D) -> void:
 	if not low_hit:
 		_fail("Slide passed through a red low block; jump would not be required")
 	# Jump rise is from the road, not the ducked pose.
-	var stand_half := 0.8
 	var apex_bottom := 0.1 + (9.5 * 9.5) / (2.0 * 24.0)
 	print("JUMP apex_bottom=%.3f low_top=%.3f" % [apex_bottom, low_top])
 	if apex_bottom < low_top + 0.15:
@@ -97,12 +96,27 @@ func _test_slide(main: Node, player: CharacterBody3D) -> void:
 		_fail("Overhead gate did not build")
 		return
 	var beam_bottom := _box_bottom(bar)
-	var beam_top := _box_top(bar)
-	print("GATE bottom=%.3f top=%.3f stand_top=%.3f" % [beam_bottom, beam_top, stand_top])
-	if beam_bottom < 1.2:
+	var lower_col := bar.get_node("CollisionShape3D") as CollisionShape3D
+	var lower_shape := lower_col.shape as BoxShape3D
+	print("GATE bottom=%.3f thick=%.3f stand_top=%.3f" % [beam_bottom, lower_shape.size.y, stand_top])
+	if lower_shape.size.y > 0.55:
+		_fail("Limbo bar is still a wall (thickness %.3f)" % lower_shape.size.y)
+	if beam_bottom < 1.35:
 		_fail("Gate crawl gap is too low (bottom %.3f)" % beam_bottom)
-	if beam_top < apex_bottom + stand_half * 2.0 - 0.15:
-		_fail("Gate is short enough to jump over (top %.3f)" % beam_top)
+	var upper := bar.get_node_or_null("UpperRail") as CollisionShape3D
+	if upper == null or not (upper.shape is BoxShape3D):
+		_fail("Jump rail is missing")
+		return
+	var upper_shape := upper.shape as BoxShape3D
+	if upper_shape.size.y > 0.55:
+		_fail("Upper rail is too thick (%.3f)" % upper_shape.size.y)
+	var posts := bar.find_children("GatePost*", "", true, false)
+	if posts.size() < 2:
+		_fail("Gate posts missing")
+	else:
+		var post_mesh := (posts[0] as MeshInstance3D).mesh as BoxMesh
+		if post_mesh != null and post_mesh.size.y > 3.05:
+			_fail("Gate posts are still a wall (height %.2f)" % post_mesh.size.y)
 	if bar.get_node_or_null("DuckCues") == null or bar.find_children("LipStripe*", "", true, false).size() < 4:
 		_fail("Hanging gate is missing the lip stripes or down-chevrons")
 	var stand_hit := await _query_overlap(player, bar)
@@ -118,15 +132,27 @@ func _test_slide(main: Node, player: CharacterBody3D) -> void:
 		_fail("Keyboard ui_down did not start a slide")
 		return
 	var slide_top_2 := _capsule_top(player)
+	var slide_visual := player.get("visual_root") as Node3D
+	if slide_visual:
+		var card_top := 3.0 * slide_visual.scale.y
+		print("SLIDE card_top=%.3f bar_bottom=%.3f" % [card_top, beam_bottom])
+		if card_top > beam_bottom - 0.22:
+			_fail("Crouch still fills the gap under the bar (card %.3f, bar %.3f)" % [card_top, beam_bottom])
 	var slide_hit := await _query_overlap(player, bar)
 	print("GATE while sliding overlap=%s slide_top=%.3f" % [slide_hit, slide_top_2])
 	if slide_hit:
 		_fail("Slide still hits the magenta gate (top %.3f, beam %.3f)" % [slide_top_2, beam_bottom])
-	if slide_top_2 > beam_bottom - 0.05:
-		_fail("Slide top %.3f is not under beam bottom %.3f" % [slide_top_2, beam_bottom])
-	bar.queue_free()
+	if slide_top_2 > beam_bottom - 0.2:
+		_fail("Slide top %.3f is not clearly under beam bottom %.3f" % [slide_top_2, beam_bottom])
 	while player.is_sliding:
 		await physics_frame
+	# Standing capsule at jump apex. The ducked pose must not be what we test.
+	var jump_rise := (9.5 * 9.5) / (2.0 * 24.0)
+	var jump_hit := await _query_overlap_rise(player, bar, jump_rise)
+	print("JUMP into gate overlap=%s rise=%.3f" % [jump_hit, jump_rise])
+	if not jump_hit:
+		_fail("Jump clears the hanging gate")
+	bar.queue_free()
 
 func _test_chaser(player: Node3D, chaser: CharacterBody3D) -> void:
 	var body := chaser.get_node_or_null("Visual/Body") as MeshInstance3D
@@ -152,6 +178,7 @@ func _test_chaser(player: Node3D, chaser: CharacterBody3D) -> void:
 	const GRACE_FRAMES := 480
 	var min_gap := opening_gap
 	var saw_gate := false
+	var cam := player.get_node_or_null("Camera3D") as Camera3D
 	for i in 1500:
 		_silence_obstacles()
 		await physics_frame
@@ -160,6 +187,9 @@ func _test_chaser(player: Node3D, chaser: CharacterBody3D) -> void:
 			return
 		if bool(chaser.engaged) or chaser.visible:
 			_fail("Chaser engaged with no hit at frame %d" % i)
+			return
+		if cam and _chaser_drawn_in_view(cam, chaser):
+			_fail("Chaser is on screen during the clean opening at frame %d" % i)
 			return
 		var gap := chaser.global_position.z - player.global_position.z
 		min_gap = minf(min_gap, gap)
@@ -264,21 +294,39 @@ func _test_boost_and_hit(player: Node, chaser: Node3D) -> void:
 	print("HIT survived min_gap=%.2f" % min_gap)
 	if min_gap <= 1.55:
 		_fail("A single hit let the chaser catch (min gap %.2f)" % min_gap)
-	var gap_before_boost := float(chaser.global_position.z - player.global_position.z)
+	var away_cam := player.get_node_or_null("Camera3D") as Camera3D
 	player.apply_boost()
-	for _i in 50:
+	for _i in 20:
 		_silence_obstacles()
 		await physics_frame
 	if bool(gm.is_game_over):
 		_fail("Boost after a hit ended the run")
 		return
-	var gap_after_boost := float(chaser.global_position.z - player.global_position.z)
-	var surged := float(player.current_speed)
-	print("AWAY boost speed=%.1f gap %.2f -> %.2f" % [surged, gap_before_boost, gap_after_boost])
-	if surged < float(player.cruise_speed) + 10.0:
+	var gap_away := float(chaser.global_position.z - player.global_position.z)
+	print("AWAY engaged=%s visible=%s gap=%.2f speed=%.1f" % [
+		chaser.engaged, chaser.visible, gap_away, float(player.current_speed)
+	])
+	if bool(chaser.engaged) or chaser.visible:
+		_fail("Boost did not stop the chase")
+		return
+	if float(player.current_speed) < float(player.cruise_speed) + 10.0:
 		_fail("Boost after a hit did not surge speed")
-	if gap_after_boost < gap_before_boost + 0.35 and gap_after_boost < 4.15:
-		_fail("Boost did not open the chaser gap (%.2f -> %.2f)" % [gap_before_boost, gap_after_boost])
+	if gap_away < 18.0:
+		_fail("Chaser still close after boost (gap %.2f)" % gap_away)
+	if away_cam and _chaser_drawn_in_view(away_cam, chaser):
+		_fail("Chaser still on screen after the boost")
+	# A later crash brings the pursuer back. That hit is still not a catch.
+	player.on_obstacle_hit()
+	for _i in 12:
+		_silence_obstacles()
+		await physics_frame
+	if bool(gm.is_game_over):
+		_fail("Second hit ended the run")
+		return
+	if not bool(chaser.engaged) or not chaser.visible:
+		_fail("A later hit did not bring the chaser back")
+		return
+	_assert_chaser_in_frame(player, chaser)
 
 func _assert_chaser_in_frame(player: Node, chaser: Node3D) -> void:
 	var cam := player.get_node_or_null("Camera3D") as Camera3D
@@ -303,6 +351,51 @@ func _assert_chaser_in_frame(player: Node, chaser: Node3D) -> void:
 		_fail("Chaser screen coverage too large area=%.3f w=%.3f h=%.3f" % [span.x, span.y, span.z])
 	if span.x <= 0.001:
 		_fail("Chaser never appeared on screen after the hit")
+
+func _chaser_drawn_in_view(cam: Camera3D, chaser: Node3D) -> bool:
+	if not chaser.visible:
+		return false
+	var visual := chaser.get_node_or_null("Visual") as Node3D
+	if visual == null or not visual.visible:
+		return false
+	var vp := cam.get_viewport().get_visible_rect().size
+	if vp.x < 2.0 or vp.y < 2.0:
+		return false
+	for mi in visual.find_children("*", "MeshInstance3D", true, false):
+		if mi.mesh == null or not mi.visible:
+			continue
+		var ab: AABB = mi.mesh.get_aabb()
+		var xf: Transform3D = mi.global_transform
+		var a := ab.position
+		var b := ab.position + ab.size
+		for x in [a.x, b.x]:
+			for y in [a.y, b.y]:
+				for z in [a.z, b.z]:
+					var world: Vector3 = xf * Vector3(x, y, z)
+					if cam.is_position_behind(world):
+						continue
+					var sp := cam.unproject_position(world)
+					if sp.x >= -8.0 and sp.x <= vp.x + 8.0 and sp.y >= -8.0 and sp.y <= vp.y + 8.0:
+						return true
+	return false
+
+func _query_overlap_rise(player: CharacterBody3D, area: Area3D, rise: float) -> bool:
+	area.global_position = Vector3(player.global_position.x, area.global_position.y, player.global_position.z)
+	await physics_frame
+	var space := player.get_world_3d().direct_space_state
+	var params := PhysicsShapeQueryParameters3D.new()
+	var col := player.get_node("CollisionShape3D") as CollisionShape3D
+	params.shape = col.shape
+	var xf := col.global_transform
+	xf.origin.y += rise
+	params.transform = xf
+	params.collide_with_areas = true
+	params.collide_with_bodies = false
+	params.collision_mask = 4
+	for item in space.intersect_shape(params, 8):
+		if item.collider == area:
+			return true
+	return false
 
 func _screen_span(cam: Camera3D, chaser: Node3D) -> Vector3:
 	var visual := chaser.get_node_or_null("Visual")

@@ -105,8 +105,7 @@ func _spawn_pattern(seg_z: float) -> void:
 			pass
 
 func _pattern_overhead_bar(seg_z: float) -> void:
-	# Full-width magenta hanging gate. Red blocks stay jump-only.
-	# The lip sits above the slide duck and the panel rises past jump apex.
+	# Full-width magenta limbo gate. Red blocks stay jump-only.
 	var bar: Node3D = obstacle_scene.instantiate()
 	bar.set("kind", "overhead")
 	bar.name = "OverheadBar"
@@ -115,6 +114,9 @@ func _pattern_overhead_bar(seg_z: float) -> void:
 	active_props.append(bar)
 	for lane in [-1, 0, 1]:
 		_spawn_at(coin_scene, lane, 0.32, seg_z - 10.0)
+	# Just past the gate, every lane, so a stumble can grab a surge and drop the chaser.
+	for lane in [-1, 0, 1]:
+		_spawn_at(boost_scene, lane, 0.75, seg_z - 24.0)
 
 func _pattern_single_block(seg_z: float) -> void:
 	var lane := randi_range(-1, 1)
