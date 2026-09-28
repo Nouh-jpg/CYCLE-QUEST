@@ -1,6 +1,6 @@
 extends SceneTree
-## Headless checks: chaser stays off the lens, the existing slide duck
-## clears the magenta hanging gate, and jump still clears a red low block.
+## Headless checks: the chaser stays offstage until a hit, one stumble does
+## not end the run, slide clears the magenta gate, and jump clears a red block.
 
 var _failed := false
 
@@ -140,57 +140,39 @@ func _test_chaser(player: Node3D, chaser: CharacterBody3D) -> void:
 	var hidden := chaser.get_node_or_null("Mesh") as MeshInstance3D
 	if hidden != null and hidden.visible:
 		_fail("Placeholder chaser mesh is visible")
-	var cam := player.get_node_or_null("Camera3D") as Camera3D
-	if cam == null:
-		_fail("Camera missing")
+	if bool(chaser.engaged) or chaser.visible:
+		_fail("Chaser is in the chase before any hit")
 		return
-	var max_area := 0.0
-	var max_w := 0.0
-	var max_h := 0.0
-	var min_side := 100.0
-	var min_clear := 100.0
-	var min_gap := 100.0
+	var opening_gap := chaser.global_position.z - player.global_position.z
+	print("CHASER opening_gap=%.2f engaged=%s" % [opening_gap, chaser.engaged])
+	if opening_gap < 18.0:
+		_fail("Chaser starts too close (gap %.2f)" % opening_gap)
+		return
+	# Several seconds of clean riding: no hit, so the chaser must stay offstage.
+	const GRACE_FRAMES := 480
+	var min_gap := opening_gap
 	var saw_gate := false
 	for i in 1500:
 		_silence_obstacles()
 		await physics_frame
 		if bool(root.get_node("GameManager").is_game_over):
-			_fail("Run ended during chaser sample frame %d" % i)
+			_fail("Run ended during the opening (frame %d, no hits)" % i)
 			return
-		if i % 30 != 0:
-			continue
+		if bool(chaser.engaged) or chaser.visible:
+			_fail("Chaser engaged with no hit at frame %d" % i)
+			return
 		var gap := chaser.global_position.z - player.global_position.z
-		var side := chaser.global_position.x - player.global_position.x
-		var clear := cam.global_position.z - (chaser.global_position.z + 0.62)
 		min_gap = minf(min_gap, gap)
-		min_side = minf(min_side, side)
-		min_clear = minf(min_clear, clear)
-		if gap <= 1.55:
-			_fail("Chaser caught the player during framing sample (gap %.2f)" % gap)
+		if gap < 18.0:
+			_fail("Chaser approached before any hit (gap %.2f at frame %d)" % [gap, i])
 			return
-		if clear < 3.2:
-			_fail("Chaser within %.2fm of the camera" % clear)
-			return
+		if i == GRACE_FRAMES - 1:
+			print("GRACE %.1fs gap=%.2f game_over=false" % [float(GRACE_FRAMES) / 60.0, gap])
 		if not root.find_children("OverheadBar", "", true, false).is_empty():
 			saw_gate = true
-		var span := _screen_span(cam, chaser)
-		if span.x < 0.0:
-			_fail("Chaser crossed the camera plane")
-			return
-		max_area = maxf(max_area, span.x)
-		max_w = maxf(max_w, span.y)
-		max_h = maxf(max_h, span.z)
-	print("CHASER min_gap=%.2f min_side=%.2f min_clear=%.2f max_area=%.3f max_w=%.3f max_h=%.3f saw_gate=%s" % [
-		min_gap, min_side, min_clear, max_area, max_w, max_h, saw_gate
-	])
+	print("CHASER dormant min_gap=%.2f saw_gate=%s" % [min_gap, saw_gate])
 	if not saw_gate:
 		_fail("No magenta OverheadBar spawned on the road")
-	if min_side < 0.85:
-		_fail("Chaser drifted onto the rider (side %.2f)" % min_side)
-	if max_area > 0.12 or max_w > 0.45 or max_h > 0.5:
-		_fail("Chaser screen coverage too large area=%.3f w=%.3f h=%.3f" % [max_area, max_w, max_h])
-	if max_area <= 0.001:
-		_fail("Chaser never appeared on screen")
 
 func _test_music() -> void:
 	var ga := root.get_node_or_null("GameAudio")
@@ -222,6 +204,9 @@ func _test_boost_and_hit(player: Node, chaser: Node3D) -> void:
 	var gm := root.get_node("GameManager")
 	var cruise := float(player.cruise_speed)
 	var gap0 := float(chaser.global_position.z - player.global_position.z)
+	if bool(chaser.engaged) or gap0 < 18.0:
+		_fail("Chaser was already chasing before the boost (gap %.2f)" % gap0)
+		return
 	player.apply_boost()
 	for _i in 50:
 		_silence_obstacles()
@@ -229,16 +214,22 @@ func _test_boost_and_hit(player: Node, chaser: Node3D) -> void:
 	if bool(gm.is_game_over):
 		_fail("Boost ended the run")
 		return
+	if bool(chaser.engaged):
+		_fail("Boost summoned the chaser")
+		return
 	var boosted := float(player.current_speed)
 	var gap1 := float(chaser.global_position.z - player.global_position.z)
 	print("BOOST speed=%.1f cruise=%.1f gap %.2f -> %.2f" % [boosted, cruise, gap0, gap1])
 	if boosted < cruise + 10.0:
 		_fail("Boost did not surge speed (%.1f vs cruise %.1f)" % [boosted, cruise])
-	if gap1 < gap0 + 0.35 and gap1 < 4.15:
-		_fail("Boost did not open the chaser gap (%.2f -> %.2f)" % [gap0, gap1])
+	if gap1 < 18.0:
+		_fail("Chaser approached during the opening boost (%.2f -> %.2f)" % [gap0, gap1])
 	player.set("_boost_timer", 0.0)
 	var before := float(player.current_speed)
 	player.on_obstacle_hit()
+	if not bool(chaser.engaged):
+		_fail("Obstacle hit did not bring the chaser in")
+		return
 	for _i in 8:
 		_silence_obstacles()
 		await physics_frame
@@ -249,6 +240,7 @@ func _test_boost_and_hit(player: Node, chaser: Node3D) -> void:
 	print("HIT speed %.1f -> %.1f penalty=%.1f" % [before, slowed, float(player._speed_penalty)])
 	if slowed > before - 8.0:
 		_fail("Hit did not slow the player (%.1f -> %.1f)" % [before, slowed])
+	_assert_chaser_in_frame(player, chaser)
 	var gap2 := float(chaser.global_position.z - player.global_position.z)
 	for _i in 30:
 		_silence_obstacles()
@@ -260,6 +252,57 @@ func _test_boost_and_hit(player: Node, chaser: Node3D) -> void:
 	print("HIT gap %.2f -> %.2f" % [gap2, gap3])
 	if gap3 > gap2 - 0.12:
 		_fail("Chaser did not close during the slowdown (%.2f -> %.2f)" % [gap2, gap3])
+	# Rest of this stumble, with no second hit and no boost. One hit is not a catch.
+	var min_gap := gap3
+	for _i in 220:
+		_silence_obstacles()
+		await physics_frame
+		if bool(gm.is_game_over):
+			_fail("A single obstacle hit ended the run")
+			return
+		min_gap = minf(min_gap, chaser.global_position.z - player.global_position.z)
+	print("HIT survived min_gap=%.2f" % min_gap)
+	if min_gap <= 1.55:
+		_fail("A single hit let the chaser catch (min gap %.2f)" % min_gap)
+	var gap_before_boost := float(chaser.global_position.z - player.global_position.z)
+	player.apply_boost()
+	for _i in 50:
+		_silence_obstacles()
+		await physics_frame
+	if bool(gm.is_game_over):
+		_fail("Boost after a hit ended the run")
+		return
+	var gap_after_boost := float(chaser.global_position.z - player.global_position.z)
+	var surged := float(player.current_speed)
+	print("AWAY boost speed=%.1f gap %.2f -> %.2f" % [surged, gap_before_boost, gap_after_boost])
+	if surged < float(player.cruise_speed) + 10.0:
+		_fail("Boost after a hit did not surge speed")
+	if gap_after_boost < gap_before_boost + 0.35 and gap_after_boost < 4.15:
+		_fail("Boost did not open the chaser gap (%.2f -> %.2f)" % [gap_before_boost, gap_after_boost])
+
+func _assert_chaser_in_frame(player: Node, chaser: Node3D) -> void:
+	var cam := player.get_node_or_null("Camera3D") as Camera3D
+	if cam == null:
+		_fail("Camera missing")
+		return
+	var gap := float(chaser.global_position.z - player.global_position.z)
+	var side := float(chaser.global_position.x - player.global_position.x)
+	var clear := cam.global_position.z - (chaser.global_position.z + 0.62)
+	print("CHASER engaged gap=%.2f side=%.2f clear=%.2f" % [gap, side, clear])
+	if gap <= 1.55:
+		_fail("Chaser caught on arrival (gap %.2f)" % gap)
+	if clear < 3.2:
+		_fail("Chaser within %.2fm of the camera" % clear)
+	if side < 0.85:
+		_fail("Chaser drifted onto the rider (side %.2f)" % side)
+	var span := _screen_span(cam, chaser)
+	if span.x < 0.0:
+		_fail("Chaser crossed the camera plane")
+		return
+	if span.x > 0.12 or span.y > 0.45 or span.z > 0.5:
+		_fail("Chaser screen coverage too large area=%.3f w=%.3f h=%.3f" % [span.x, span.y, span.z])
+	if span.x <= 0.001:
+		_fail("Chaser never appeared on screen after the hit")
 
 func _screen_span(cam: Camera3D, chaser: Node3D) -> Vector3:
 	var visual := chaser.get_node_or_null("Visual")
