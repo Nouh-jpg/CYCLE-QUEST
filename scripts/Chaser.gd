@@ -1,20 +1,26 @@
 extends CharacterBody3D
 
 ## The chase camera sits ~8.5 m behind the rider (Player._setup_camera).
-## A 2×2.3×2 body that starts at z=18 drives through that lens and fills the
-## frame. Stay in the band between rider and camera, offset to the rider's
-## right, and small enough that the road and the billboard stay readable.
+## The chaser stays offstage until the first obstacle hit. It then appears
+## in the band between rider and camera, small and off the rider's right.
+## A single stumble must not cover that whole lead — only a real catch ends the run.
 const START_GAP := 4.35
 const CATCH_GAP := 1.55
 const WARN_GAP := 4.35
-## Seconds of clean riding to ease from START_GAP down toward PRESS_GAP.
+## Seconds of engaged riding to ease from START_GAP down toward PRESS_GAP.
 ## A hit pulls tighter than that; a boost opens back to START_GAP.
 const CLOSE_SECONDS := 36.0
 const PRESS_GAP := 3.05
 const BOOST_PULL := 8.0
 const PURSUIT_ACCEL := 6.0
+## How fast the chaser gains while the rider is slowed. Capped so the
+## appearance-on-hit lunge stays short of CATCH_GAP.
+const HIT_SQUEEZE_CAP := 0.62
+const HIT_SQUEEZE_PER_DEFICIT := 0.08
 const SIDE_FAR := 2.2
 const SIDE_NEAR := 1.15
+## Parked well behind the chase camera until the first hit. The lens is at ~8.5 m.
+const DORMANT_GAP := 32.0
 ## Meters kept between the camera and the chaser's nearest (+Z) point.
 const CAMERA_CLEARANCE := 3.45
 const BACK_EXTENT := 0.62
@@ -29,10 +35,34 @@ var _danger := 0.0 ## 0..1 for UI vignette
 var _pursuit := 15.0
 ## Set once the chaser has pressed in, so a boost escape can flash once.
 var _escape_ready := false
+## False until the first obstacle hit. The opening is an empty road.
+var engaged := false
 
 func _ready() -> void:
 	player = get_tree().root.find_child("Player", true, false)
 	_apply_toon_look()
+	_park_offstage()
+
+func _park_offstage() -> void:
+	visible = false
+	if player == null or not is_instance_valid(player):
+		return
+	global_position = Vector3(
+		player.global_position.x + SIDE_FAR,
+		player.global_position.y,
+		player.global_position.z + DORMANT_GAP
+	)
+
+## First obstacle hit. Later hits do not teleport the lead back open.
+func engage() -> void:
+	if engaged or GameManager.is_game_over:
+		return
+	engaged = true
+	_run_time = 0.0
+	_escape_ready = false
+	visible = true
+	if "cruise_speed" in player:
+		_pursuit = float(player.cruise_speed)
 	_snap_to_gap(START_GAP)
 
 func _snap_to_gap(gap: float) -> void:
@@ -105,6 +135,17 @@ func _physics_process(delta: float) -> void:
 		player = get_tree().root.find_child("Player", true, false)
 		return
 
+	if not engaged:
+		_park_offstage()
+		_danger = 0.0
+		var idle_ui := get_tree().root.find_child("UI", true, false)
+		if idle_ui and idle_ui.has_method("set_danger_level"):
+			idle_ui.set_danger_level(0.0)
+		var idle_audio := get_node_or_null("/root/GameAudio")
+		if idle_audio and idle_audio.has_method("set_danger_energy"):
+			idle_audio.set_danger_energy(0.0)
+		return
+
 	_run_time += delta
 	_anim_t += delta
 
@@ -137,9 +178,9 @@ func _physics_process(delta: float) -> void:
 		chase = player_speed
 	else:
 		var deficit := maxf(0.0, cruise - player_speed)
-		var squeeze := minf(1.45, deficit * 0.12)
+		var squeeze := minf(HIT_SQUEEZE_CAP, deficit * HIT_SQUEEZE_PER_DEFICIT)
 		if deficit > 2.0:
-			var extra := minf(0.3, maxf(0.0, (gap - desired) * 0.1))
+			var extra := minf(0.08, maxf(0.0, (gap - desired) * 0.05))
 			chase = player_speed + squeeze + extra
 		else:
 			var gap_err := gap - desired

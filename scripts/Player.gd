@@ -737,6 +737,10 @@ func on_obstacle_hit() -> void:
 	_play_squash(Vector3(1.35, 0.62, 1.35), 0.18)
 	_sfx("crash")
 	_notify_combo()
+	# The pursuer is absent until this stumble. The slowdown is not a catch.
+	var chaser := get_tree().root.find_child("Chaser", true, false)
+	if chaser and chaser.has_method("engage"):
+		chaser.engage()
 	var ui = get_tree().root.find_child("UI", true, false)
 	if ui and ui.has_method("popup_points"):
 		ui.popup_points("SLOW!", Color(1.0, 0.35, 0.25))
